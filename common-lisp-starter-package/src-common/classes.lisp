@@ -18,7 +18,7 @@
    (load-time :reader load-time :initform 3000)
    (spawn-radius2 :reader spawn-radius2 :initform 6)
    (turn-time :reader turn-time :initform 1000)
-   (turns :reader turns :initform nil)
+   (turns :reader turns :initform 200)
    (view-radius2 :reader view-radius2 :initform 93)
    (rows :reader rows :initform nil)
    (cols :reader cols :initform nil)

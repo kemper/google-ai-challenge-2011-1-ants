@@ -448,10 +448,10 @@
             finally (setf (slot-value *state* 'procs) procs))
       (loop for turn from 0 to (turns *state*)
             do (setf (slot-value *state* 'turn) turn)
-               (logmsg "--- turn: " turn " ---~%")
+               (logmsg "turn " turn " stats: ant_count: []~%")
                (when (> turn 0) (spawn-food))
-               (when *verbose*
-                 (print-game-map (game-map *state*) (log-stream *state*)))
+               ;(when *verbose*
+               ;  (print-game-map (game-map *state*) (log-stream *state*)))
                (when (= turn 0) (send-initial-game-state))
                (when (> turn 0) (do-turn turn))))
     (logmsg "[  end] " (current-date-time-string) "~%")))

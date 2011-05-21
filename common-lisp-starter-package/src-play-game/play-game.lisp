@@ -224,7 +224,11 @@
 (defun play-game ()
   (loop for turn from 0 to (turns *state*)
         do (setf (slot-value *state* 'turn) turn)
-           (logmsg "turn " turn " stats: ant_count: []~%")
+           ;(logmsg "turn " turn " stats: ant_count: []~%")
+           (when *verbose*
+             (format (log-stream *state*) "turn ~4D stats: ant_count: []~%"
+                     turn)
+             (force-output (log-stream *state*)))
            (when (> turn 0) (spawn-food))
            ;(when *verbose*
            ;  (print-game-map (game-map *state*) (log-stream *state*)))
@@ -286,10 +290,10 @@
   ;; Perhaps just checking for "python", "ruby", etc. would be better...
   (if (find #\space program)
       (let ((split (split-sequence #\space program)))
-        (logmsg (format nil "Starting: ~S ~S~%" (car split) (cdr split)))
+        ;(logmsg (format nil "Starting: ~S ~S~%" (car split) (cdr split)))
         (sb-ext:run-program (car split) (cdr split) :search t :wait nil
                             :input :stream :output :stream))
-      (progn (logmsg (format nil "Starting: ~S~%" program))
+      (progn ;(logmsg (format nil "Starting: ~S~%" program))
              (sb-ext:run-program (merge-pathnames program) args :wait nil
                                  :input :stream :output :stream))))
 
@@ -459,11 +463,14 @@
         (*verbose* nil))
     (process-cmdline-options)
     (parse-map (map-file *state*))
-    (let ((cdts (current-date-time-string)))
-      (logmsg "~&=== New Match: " cdts " ===~%")
-      (logmsg "[start] " cdts "~%"))
+    ;(let ((cdts (current-date-time-string)))
+    ;  (logmsg "~&=== New Match: " cdts " ===~%")
+    ;  (logmsg "[start] " cdts "~%"))
+    (logmsg "running for " (turns *state*) "turns~%")
     (handler-bind (#+sbcl (sb-sys:interactive-interrupt #'user-interrupt))
                    ;(error #'error-handler))
       (start-bots)
       (play-game))
-    (logmsg "[  end] " (current-date-time-string) "~%")))
+    ;(logmsg "[  end] " (current-date-time-string) "~%")
+    (logmsg "score~%")
+    (logmsg "status~%")))

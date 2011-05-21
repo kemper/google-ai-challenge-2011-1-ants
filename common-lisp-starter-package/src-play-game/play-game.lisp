@@ -10,6 +10,14 @@
 
 ;;; Functions
 
+(defun ant-count ()
+  (with-output-to-string (s)
+    (loop for i from 0 below (length (ants *state*))
+          do (princ (aref (ants *state*) i) s)
+             (when (< i (- (length (ants *state*)) 1))
+               (princ ", " s)))))
+
+
 (defun ants-within-attack-range ()
   (loop with all = (loop for row from 0 below (rows *state*)
                      append (loop for col from 0 below (cols *state*)
@@ -174,7 +182,11 @@
                    ((starts-with line "rows ")
                     (setf (slot-value *state* 'rows) (par-value line)))
                    ((starts-with line "players ")
-                    (setf (slot-value *state* 'players) (par-value line)))
+                    (let ((n-players (par-value line)))
+                      (setf (slot-value *state* 'ants)
+                            (make-array n-players :element-type 'fixnum
+                                        :initial-element 0))
+                      (setf (slot-value *state* 'players) n-players)))
                    ((and (starts-with line "m ") (null (cols *state*)))
                     (logmsg "~&Map missing \"cols n\" line. Aborting...~%")
                     (quit 1))
@@ -226,8 +238,8 @@
         do (setf (slot-value *state* 'turn) turn)
            ;(logmsg "turn " turn " stats: ant_count: []~%")
            (when *verbose*
-             (format (log-stream *state*) "turn ~4D stats: ant_count: []~%"
-                     turn)
+             (format (log-stream *state*) "turn ~4D stats: ant_count: [~A]~%"
+                     turn (ant-count))
              (force-output (log-stream *state*)))
            (when (> turn 0) (spawn-food))
            ;(when *verbose*
@@ -466,7 +478,7 @@
     ;(let ((cdts (current-date-time-string)))
     ;  (logmsg "~&=== New Match: " cdts " ===~%")
     ;  (logmsg "[start] " cdts "~%"))
-    (logmsg "running for " (turns *state*) "turns~%")
+    (logmsg "running for " (turns *state*) " turns~%")
     (handler-bind (#+sbcl (sb-sys:interactive-interrupt #'user-interrupt))
                    ;(error #'error-handler))
       (start-bots)

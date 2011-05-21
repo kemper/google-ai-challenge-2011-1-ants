@@ -127,6 +127,7 @@
         do  (if (equal :running (sb-ext:process-status proc))
                 (send-game-state i pin turn)
                 (logmsg i ":" bot " has stopped running...~%"))
+           ;; TODO don't do this when bot has stopped running
            (let ((turn-start (wall-time)))
              (wait-for-output pout turn-start)
              (loop ;while (wait-for-output pout start)  ; no return values
@@ -255,6 +256,7 @@
          (col (parse-integer (elt split 2)))
          (dir (dir2key (elt split 3)))
          (nl (new-location row col dir)))
+    ; TODO check for illegal moves here
     (push (list :bot-id bot-id :src-row row :src-col col :dst-row (elt nl 0)
                 :dst-col (elt nl 1) :direction dir)
           (orders *state*))))
@@ -270,6 +272,7 @@
 (defun run-program (program &optional (args nil))
   ;; If there's a space in PROGRAM assume it needs to be started with an
   ;; interpreter which needs a slightly different call to RUN-PROGRAM.
+  ;; Perhaps just checking for "python", "ruby", etc. would be better...
   (if (find #\space program)
       (let ((split (split-sequence #\space program)))
         (logmsg (format nil "Starting: ~S ~S~%" (car split) (cdr split)))
@@ -280,6 +283,7 @@
                                  :input :stream :output :stream))))
 
 
+;; TODO implement vision code
 (defun send-game-state (bot-id input turn)
   (format input "turn ~D~%" turn)
   (loop for row from 0 below (rows *state*)
@@ -446,6 +450,7 @@
                    ;(error #'error-handler))
       (loop for bot in (bots *state*) collect (run-program bot) into procs
             finally (setf (slot-value *state* 'procs) procs))
+      ;; TODO turn into #'run-game call
       (loop for turn from 0 to (turns *state*)
             do (setf (slot-value *state* 'turn) turn)
                (logmsg "turn " turn " stats: ant_count: []~%")

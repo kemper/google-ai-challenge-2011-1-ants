@@ -221,6 +221,17 @@
                    (otherwise (+ (char-code c) 3))))))
 
 
+(defun play-game ()
+  (loop for turn from 0 to (turns *state*)
+        do (setf (slot-value *state* 'turn) turn)
+           (logmsg "turn " turn " stats: ant_count: []~%")
+           (when (> turn 0) (spawn-food))
+           ;(when *verbose*
+           ;  (print-game-map (game-map *state*) (log-stream *state*)))
+           (when (= turn 0) (send-initial-game-state))
+           (when (> turn 0) (do-turn turn))))
+
+
 (defun process-cmdline-options ()
   (cond ((or (getopt :short-name "?") (getopt :short-name "h")
              (= 1 (length (cmdline))))
@@ -380,6 +391,11 @@
           do (setf (aref (game-map *state*) row col) 2))))
 
 
+(defun start-bots ()
+  (loop for bot in (bots *state*) collect (run-program bot) into procs
+        finally (setf (slot-value *state* 'procs) procs)))
+
+
 (defun no-turn-time-left-p (turn-start-time)
   (not (turn-time-left-p turn-start-time)))
 
@@ -448,15 +464,6 @@
       (logmsg "[start] " cdts "~%"))
     (handler-bind (#+sbcl (sb-sys:interactive-interrupt #'user-interrupt))
                    ;(error #'error-handler))
-      (loop for bot in (bots *state*) collect (run-program bot) into procs
-            finally (setf (slot-value *state* 'procs) procs))
-      ;; TODO turn into #'run-game call
-      (loop for turn from 0 to (turns *state*)
-            do (setf (slot-value *state* 'turn) turn)
-               (logmsg "turn " turn " stats: ant_count: []~%")
-               (when (> turn 0) (spawn-food))
-               ;(when *verbose*
-               ;  (print-game-map (game-map *state*) (log-stream *state*)))
-               (when (= turn 0) (send-initial-game-state))
-               (when (> turn 0) (do-turn turn))))
+      (start-bots)
+      (play-game))
     (logmsg "[  end] " (current-date-time-string) "~%")))

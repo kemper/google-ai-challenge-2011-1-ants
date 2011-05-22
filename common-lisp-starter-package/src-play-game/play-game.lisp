@@ -10,12 +10,13 @@
 
 ;;; Functions
 
-(defun ant-count ()
+(defun ant-count (&optional (sep ""))
   (with-output-to-string (s)
     (loop for i from 0 below (length (ants *state*))
           do (princ (aref (ants *state*) i) s)
              (when (< i (- (length (ants *state*)) 1))
-               (princ ", " s)))))
+               (princ sep s)
+               (princ " " s)))))
 
 
 (defun ants-within-attack-range ()
@@ -57,6 +58,8 @@
         for bid = (when battle (- (aref (game-map *state*) brow bcol) 99))
         do (logmsg "Ants " aid ":" arow ":" acol " and " bid ":" brow ":" bcol
                    " fought...~%")
+           ;; TODO implement proper battle resolution and adjusting of
+           ;;      (ants *state*)
            (setf (aref (game-map *state*) arow acol) (+ aid 199)
                  (aref (game-map *state*) brow bcol) (+ bid 199))))
 
@@ -230,7 +233,9 @@
                  (case c
                    (#\. 0)
                    (#\% 1)
-                   (otherwise (+ (char-code c) 3))))))
+                   ;(otherwise (+ (char-code c) 3))))))
+                   (otherwise (incf (aref (ants *state*) (- (char-code c) 97)))
+                              (+ (char-code c) 3))))))
 
 
 (defun play-game ()
@@ -239,7 +244,7 @@
            ;(logmsg "turn " turn " stats: ant_count: []~%")
            (when *verbose*
              (format (log-stream *state*) "turn ~4D stats: ant_count: [~A]~%"
-                     turn (ant-count))
+                     turn (ant-count ","))
              (force-output (log-stream *state*)))
            (when (> turn 0) (spawn-food))
            ;(when *verbose*
@@ -382,6 +387,10 @@
                                 (sqrt (spawn-radius2 *state*)))
                         (pushnew aid nearby-ant-ids))
                    finally (cond ((= 1 (length nearby-ant-ids))
+                                  (logmsg "Spawning new ant: "
+                                          (first nearby-ant-ids) "~%")
+                                  (incf (aref (ants *state*)
+                                              (- (first nearby-ant-ids) 100)))
                                   (setf (aref (game-map *state*) frow fcol)
                                         (first nearby-ant-ids)))
                                  ((> (length nearby-ant-ids) 1)
@@ -484,5 +493,10 @@
       (start-bots)
       (play-game))
     ;(logmsg "[  end] " (current-date-time-string) "~%")
-    (logmsg "score~%")
-    (logmsg "status~%")))
+    (logmsg "score " (ant-count) "~%")
+    ;; TODO move to seperate function
+    (logmsg "status" (with-output-to-string (s)
+                       (loop for ant across (ants *state*)
+                             do (if (> ant 0)
+                                    (princ " survived" s)
+                                    (princ " killed" s)))) "~%")))

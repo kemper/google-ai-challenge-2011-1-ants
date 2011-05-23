@@ -315,6 +315,45 @@
                                  :input :stream :output :stream))))
 
 
+;; See: https://github.com/aichallenge/aichallenge/wiki/Ants-replay-format
+(defun save-replay (&optional (round 0))
+  (with-open-file (f (mkstr round ".replay") :direction :output
+                     :if-exists :supersede)
+    (format f (mkstr "{~%"
+                     "    \"challenge\": \"ants\",~%"
+                     "    \"replayformat\": \"json\",~%"
+                     "    \"replaydata\": {~%"
+                     "        \"revision\": 2,~%"
+                     "        \"players\": " (players *state*) ",~%"
+                     "        \"loadtime\": " (load-time *state*) ",~%"
+                     "        \"turntime\": " (turn-time *state*) ",~%"
+                     "        \"turns\": " (turns *state*) ",~%"
+                     "        \"viewradius2\": " (view-radius2 *state*) ",~%"
+                   "        \"attackradius2\": " (attack-radius2 *state*) ",~%"
+                     "        \"spawnradius2\": " (spawn-radius2 *state*) ",~%"
+                     "        \"map\": {~%"
+                     "             \"rows\": " (rows *state*) ",~%"
+                     "             \"cols\": " (cols *state*) ",~%"
+                     "             \"data\": [~%"))
+    (loop for row from 0 below (rows *state*)
+          do (format f "                     \"")
+             (loop for col from 0 below (cols *state*)
+                   do (let ((cell (aref (game-map *state*) row col)))
+                        (cond ((= cell 0) (princ #\. f))
+                              ((= cell 1) (princ #\% f))
+                              ((= cell 2) (princ #\* f))
+                              ((< cell 200) (princ (code-char (- cell 3)) f))
+                              (t (princ (code-char (- cell 65)) f)))))
+                              ;(t (princ #\. f)))))
+             (if (< (+ row 1) (rows *state*))
+                 (format f "\",~%")
+                 (format f "\"~%")))
+    (format f (mkstr "             ]~%"
+                     "        }~%"
+                     "    }~%"
+                     "}~%"))))
+
+
 ;; TODO implement vision code
 (defun send-game-state (bot-id input turn)
   (format input "turn ~D~%" turn)
@@ -499,4 +538,5 @@
                        (loop for ant across (ants *state*)
                              do (if (> ant 0)
                                     (princ " survived" s)
-                                    (princ " killed" s)))) "~%")))
+                                    (princ " eliminated" s)))) "~%")
+    (save-replay)))

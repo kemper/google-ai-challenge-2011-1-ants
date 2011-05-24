@@ -12,4 +12,5 @@
    (map-file :reader map-file :initform nil)
    (orders :accessor orders :initarg :orders :initform nil)
    (players :reader players :initarg :players :initform nil)
-   (procs :reader procs :initarg :procs :initform nil)))
+   (procs :reader procs :initarg :procs :initform nil)
+   (scores :reader scores :initarg :scores :initform nil)))

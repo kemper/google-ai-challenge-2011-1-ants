@@ -250,7 +250,11 @@
            ;(when *verbose*
            ;  (print-game-map (game-map *state*) (log-stream *state*)))
            (when (= turn 0) (send-initial-game-state))
-           (when (> turn 0) (do-turn turn))))
+           (when (> turn 0)
+             (loop for vec across (scores *state*)
+                   for score = (aref vec (- turn 1))
+                   do (vector-push-extend score vec))
+             (do-turn turn))))
 
 
 (defun process-cmdline-options ()
@@ -349,7 +353,22 @@
                  (format f "\",~%")
                  (format f "\"~%")))
     (format f (mkstr "             ]~%"
-                     "        }~%"
+                     "        },~%"
+                     "        \"ants\": [],~%"
+                     "        \"scores\": [~%"))
+    (loop for score across (scores *state*)
+          for i from 0
+          do (princ "            [" f)
+             (loop for n across score
+                   for i from 0
+                   do (princ n f)
+                      (when (< i (- (length score) 1))
+                        (princ "," f)))
+             (princ "]" f)
+             (when (< i (- (length (scores *state*)) 1))
+               (princ "," f))
+             (terpri f))
+    (format f (mkstr "        ]~%"
                      "    }~%"
                      "}~%"))))
 
@@ -426,10 +445,13 @@
                                 (sqrt (spawn-radius2 *state*)))
                         (pushnew aid nearby-ant-ids))
                    finally (cond ((= 1 (length nearby-ant-ids))
-                                  (logmsg "Spawning new ant: "
-                                          (first nearby-ant-ids) "~%")
+                                  ;(logmsg "Spawning new ant: "
+                                  ;        (first nearby-ant-ids) "~%")
                                   (incf (aref (ants *state*)
                                               (- (first nearby-ant-ids) 100)))
+                                  (incf (aref (aref (scores *state*)
+                                                (- (first nearby-ant-ids) 100))
+                                              (turn *state*)))
                                   (setf (aref (game-map *state*) frow fcol)
                                         (first nearby-ant-ids)))
                                  ((> (length nearby-ant-ids) 1)
@@ -530,6 +552,12 @@
     (handler-bind (#+sbcl (sb-sys:interactive-interrupt #'user-interrupt))
                    ;(error #'error-handler))
       (start-bots)
+      (loop with scores = (make-array (length (bots *state*)))
+            for i from 0 below (length (bots *state*))
+            do (setf (aref scores i)
+                     (make-array 1 :element-type 'fixnum :fill-pointer 1
+                                 :initial-element 0))
+            finally (setf (slot-value *state* 'scores) scores))
       (play-game))
     ;(logmsg "[  end] " (current-date-time-string) "~%")
     (logmsg "score " (ant-count) "~%")

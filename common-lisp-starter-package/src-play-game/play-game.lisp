@@ -7,6 +7,8 @@
 
 (in-package :play-game)
 
+(declaim (optimize (debug 3)))
+
 
 ;;; Functions
 
@@ -117,8 +119,10 @@
 (defun clear-dead-ants ()
   (loop for row from 0 below (rows *state*)
         do (loop for col from 0 below (cols *state*)
-                 do (when (>= (aref (game-map *state*) row col) 200)
-                      (setf (aref (game-map *state*) row col) 0)))))
+                 for tile = (aref (game-map *state*) row col)
+                 do (when (and (typep tile 'ant) (dead tile))
+                      (setf (aref (game-map *state*) row col)
+                            (make-instance 'land :row row :col col))))))
 
 
 (defun dir2key (direction)
@@ -208,7 +212,8 @@
                    ((and (starts-with line "m ") (null (game-map *state*)))
                     (setf (slot-value *state* 'game-map)
                           (make-array (list (rows *state*) (cols *state*))
-                                     :element-type 'fixnum :initial-element 0))
+                                      ;; magic number for debugging
+                                      :initial-element 'ABC123))
                     (parse-map-line (game-map *state*) line rows)
                     (incf rows))
                    ((starts-with line "m ")
@@ -231,11 +236,16 @@
         for col from 0
         do (setf (aref map-array row col)
                  (case c
-                   (#\. 0)
-                   (#\% 1)
-                   ;(otherwise (+ (char-code c) 3))))))
-                   (otherwise (incf (aref (ants *state*) (- (char-code c) 97)))
-                              (+ (char-code c) 3))))))
+                   (#\. (make-instance 'land :row row :col col))
+                   (#\% (make-instance 'water :row row :col col))
+                   ;(otherwise (incf (aref (ants *state*) (- (char-code c) 97)))
+                   ;           (+ (char-code c) 3))))))
+                   (otherwise
+                    (let ((pid (- (char-code c) 97)))
+                      (incf (aref (ants *state*) pid))
+                      (make-instance 'ant :initial-row row :initial-col col
+                                          :row row :col col :pid pid
+                                          :start-turn (turn *state*))))))))
 
 
 (defun play-game ()
@@ -246,7 +256,8 @@
              (format (log-stream *state*) "turn ~4D stats: ant_count: [~A]~%"
                      turn (ant-count ","))
              (force-output (log-stream *state*)))
-           (when (> turn 0) (spawn-food))
+           ;; TODO turn on
+           ;(when (> turn 0) (spawn-food))
            ;(when *verbose*
            ;  (print-game-map (game-map *state*) (log-stream *state*)))
            (when (= turn 0) (send-initial-game-state))
@@ -255,6 +266,31 @@
                    for score = (aref vec (- turn 1))
                    do (vector-push-extend score vec))
              (do-turn turn))))
+
+
+(defun print-game-map (game-map &optional (stream *debug-io*))
+  (loop with dim = (array-dimensions game-map)
+        for col from 0 below (second dim)
+        initially (princ #\space stream)
+                  (princ #\space stream)
+        do (princ (mod col 10) stream)
+        finally (terpri stream))
+  (loop with dim = (array-dimensions game-map)
+        for row from 0 below (first dim)
+        do (princ (mod row 10) stream)
+           (princ #\space stream)
+           (loop for col from 0 below (second dim)
+                 for tile = (aref game-map row col)
+                 for type = (type-of tile)
+                 do (case type
+                      (land  (princ #\. stream))
+                      (water (princ #\% stream))
+                      (food  (princ #\* stream))
+                      (ant (if (dead tile)
+                               (princ (code-char (+ (pid tile) 65)) stream)
+                               (princ (code-char (+ (pid tile) 97)) stream)))
+                      (t (princ #\? stream))))
+           (terpri stream)))
 
 
 (defun process-cmdline-options ()
@@ -378,19 +414,26 @@
   (format input "turn ~D~%" turn)
   (loop for row from 0 below (rows *state*)
         do (loop for col from 0 below (cols *state*)
-                 for sq = (aref (game-map *state*) row col)
-                 do (cond ((= sq 1) (format input "w ~D ~D~%" row col))
-                          ((= sq 2) (format input "f ~D ~D~%" row col))
-                          ((>= sq 200)
-                           (format input "d ~D ~D ~D~%" row col
-                                   (cond ((= bot-id (- sq 200)) 0)
-                                         ((< bot-id (- sq 200)) (- sq 200))
-                                         ((> bot-id (- sq 200)) (- sq 199)))))
-                          ((>= sq 100)
-                           (format input "a ~D ~D ~D~%" row col
-                                   (cond ((= bot-id (- sq 100)) 0)
-                                         ((< bot-id (- sq 100)) (- sq 100))
-                                         ((> bot-id (- sq 100)) (- sq 99))))))))
+                 for tile = (aref (game-map *state*) row col)
+                 for type = (type-of tile)
+                 do (case type
+                      (water (format input "w ~D ~D~%" row col))
+                      (food  (format input "f ~D ~D~%" row col))
+                      (ant (if (dead tile)
+                               (format input "d ~D ~D ~D~%" row col
+                                       (cond ((= bot-id (pid tile))
+                                              0)
+                                             ((< bot-id (pid tile))
+                                              (+ (pid tile) 1))
+                                             ((> bot-id (pid tile))
+                                              (- (pid tile) 1))))
+                               (format input "a ~D ~D ~D~%" row col
+                                       (cond ((= bot-id (pid tile))
+                                              0)
+                                             ((< bot-id (pid tile))
+                                              (+ (pid tile) 1))
+                                             ((> bot-id (pid tile))
+                                              (- (pid tile) 1)))))))))
   (format input "go~%")
   (force-output input))
 

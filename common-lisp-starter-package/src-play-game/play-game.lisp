@@ -7,7 +7,11 @@
 
 (in-package :play-game)
 
-(declaim (optimize (debug 3)))
+
+;;; Constants
+
+(defvar +land+ (make-instance 'land))
+(defvar +water+ (make-instance 'water))
 
 
 ;;; Functions
@@ -24,17 +28,18 @@
 (defun ants-within-attack-range ()
   (loop with all = (loop for row from 0 below (rows *state*)
                      append (loop for col from 0 below (cols *state*)
-                                  for value = (aref (game-map *state*) row col)
-                                  when (and (>= value 100) (<= value 199))
-                                    collect (list value row col)))
+                                  for tile = (aref (game-map *state*) row col)
+                                  when (and (typep tile 'ant)
+                                            (not (dead tile)))
+                                    collect tile))
         for ant-a in all
-        for aid = (elt ant-a 0)
-        for arow = (elt ant-a 1)
-        for acol = (elt ant-a 2)
+        for aid = (pid ant-a)
+        for arow = (row ant-a)
+        for acol = (col ant-a)
         append (loop for ant-b in (remove ant-a all)
-                     for bid = (elt ant-b 0)
-                     for brow = (elt ant-b 1)
-                     for bcol = (elt ant-b 2)
+                     for bid = (pid ant-b)
+                     for brow = (row ant-b)
+                     for bcol = (col ant-b)
                      for dist = (distance arow acol brow bcol)
                      when (and (/= aid bid)
                                (<= dist (sqrt (attack-radius2 *state*))))
@@ -46,28 +51,25 @@
                                                 (getf plist :distance))))))
 
 
-;; This implements battle resolution 2 as described here:
-;; - https://github.com/aichallenge/aichallenge/wiki/Ants-Game-Specification
-(defun battle-resolution2 ()
-  (loop for awar = (ants-within-attack-range)
-        for battle = (first awar)
-        while battle
-        for arow = (getf battle :a-row)
-        for acol = (getf battle :a-col)
-        for aid = (when battle (- (aref (game-map *state*) arow acol) 99))
-        for brow = (getf battle :b-row)
-        for bcol = (getf battle :b-col)
-        for bid = (when battle (- (aref (game-map *state*) brow bcol) 99))
-        do (logmsg "Ants " aid ":" arow ":" acol " and " bid ":" brow ":" bcol
-                   " fought...~%")
-           ;; TODO implement proper battle resolution and adjusting of
-           ;;      (ants *state*)
-           (setf (aref (game-map *state*) arow acol) (+ aid 199)
-                 (aref (game-map *state*) brow bcol) (+ bid 199))))
-
-
+;; TODO implement battle resolution from:
+;; http://github.com/aichallenge/aichallenge/wiki/Ants-Game-Specification
 (defun battle-resolution ()
-  (battle-resolution2))
+  ;(loop for awar = (ants-within-attack-range)
+  ;      for battle = (first awar)
+  ;      while battle
+  ;      for arow = (getf battle :a-row)
+  ;      for acol = (getf battle :a-col)
+  ;      for aid = (when battle (- (aref (game-map *state*) arow acol) 99))
+  ;      for brow = (getf battle :b-row)
+  ;      for bcol = (getf battle :b-col)
+  ;      for bid = (when battle (- (aref (game-map *state*) brow bcol) 99))
+  ;      do (logmsg "Ants " aid ":" arow ":" acol " and " bid ":" brow ":" bcol
+  ;                 " fought...~%")
+  ;         ;; TODO implement proper battle resolution and adjusting of
+  ;         ;;      (ants *state*)
+  ;         (setf (aref (game-map *state*) arow acol) (+ aid 199)
+  ;               (aref (game-map *state*) brow bcol) (+ bid 199)))
+  )
 
 
 ;; TODO fix inefficient algorithm
@@ -89,8 +91,8 @@
                       (logmsg "Ants " bot-a-id ":" srow-a ":" scol-a " and "
                               bot-b-id ":" srow-b ":" scol-b " collided. "
                               "Killing ants...~%")
-                      (setf (aref (game-map *state*) srow-a scol-a) 0
-                            (aref (game-map *state*) srow-b scol-b) 0
+                      (setf (aref (game-map *state*) srow-a scol-a) +land+
+                            (aref (game-map *state*) srow-b scol-b) +land+
                             (orders *state*) (remove order-b (remove order-a (orders *state*))))))))
 
 
@@ -99,9 +101,11 @@
         for bot-id = (getf order :bot-id)
         for row = (getf order :src-row)
         for col = (getf order :src-col)
-        do (when (/= (+ bot-id 100) (aref (game-map *state*) row col))
+        do (when (/= bot-id (pid (aref (game-map *state*) row col)))
              (logmsg "Bot " bot-id " issued an order for a position it "
                      "doesn't occupy. Ignoring...~%")
+             (logmsg "o: " order "~%")
+             (logmsg "p: " (pid (aref (game-map *state*) row col)) "~%")
              (setf (orders *state*) (remove order (orders *state*))))))
 
 
@@ -121,8 +125,7 @@
         do (loop for col from 0 below (cols *state*)
                  for tile = (aref (game-map *state*) row col)
                  do (when (and (typep tile 'ant) (dead tile))
-                      (setf (aref (game-map *state*) row col)
-                            (make-instance 'land :row row :col col))))))
+                      (setf (aref (game-map *state*) row col) +land+)))))
 
 
 (defun dir2key (direction)
@@ -162,6 +165,13 @@
   (move-ants))
 
 
+(defun key2dir (key)
+  (cond ((equal key :north) #\n)
+        ((equal key :east)  #\e)
+        ((equal key :south) #\s)
+        ((equal key :west)  #\w)))
+
+
 (defun move-ants ()
   (clear-dead-ants)
   (check-positions)
@@ -173,10 +183,15 @@
         for src-col = (getf order :src-col)
         for dst-row = (getf order :dst-row)
         for dst-col = (getf order :dst-col)
-        do (setf (aref (game-map *state*) src-row src-col) 0)
-           (setf (aref (game-map *state*) dst-row dst-col) (+ bot-id 100)))
+        for ant = (aref (game-map *state*) src-row src-col)
+        do (vector-push-extend (key2dir (getf order :direction)) (orders ant))
+           (setf (slot-value ant 'row) dst-row
+                 (slot-value ant 'col) dst-col
+                 (aref (game-map *state*) dst-row dst-col) ant
+                 (aref (game-map *state*) src-row src-col) +land+))
   (battle-resolution)
-  (spawn-ants))
+  ;(spawn-ants)
+  )
 
 
 (defun parse-map (file-name)
@@ -236,16 +251,17 @@
         for col from 0
         do (setf (aref map-array row col)
                  (case c
-                   (#\. (make-instance 'land :row row :col col))
-                   (#\% (make-instance 'water :row row :col col))
-                   ;(otherwise (incf (aref (ants *state*) (- (char-code c) 97)))
-                   ;           (+ (char-code c) 3))))))
+                   (#\. +land+)
+                   (#\% +water+)
                    (otherwise
-                    (let ((pid (- (char-code c) 97)))
+                    (let ((ant nil)
+                          (pid (- (char-code c) 97)))
                       (incf (aref (ants *state*) pid))
-                      (make-instance 'ant :initial-row row :initial-col col
-                                          :row row :col col :pid pid
-                                          :start-turn (turn *state*))))))))
+                      (setf ant (make-instance 'ant :initial-row row
+                                  :initial-col col :row row :col col :pid pid
+                                  :start-turn (turn *state*)))
+                      (push ant (antz *state*))
+                      ant))))))
 
 
 (defun play-game ()
@@ -256,7 +272,7 @@
              (format (log-stream *state*) "turn ~4D stats: ant_count: [~A]~%"
                      turn (ant-count ","))
              (force-output (log-stream *state*)))
-           ;; TODO turn on
+           ;; TODO turn on (eventually)
            ;(when (> turn 0) (spawn-food))
            ;(when *verbose*
            ;  (print-game-map (game-map *state*) (log-stream *state*)))
@@ -378,19 +394,39 @@
     (loop for row from 0 below (rows *state*)
           do (format f "                     \"")
              (loop for col from 0 below (cols *state*)
-                   do (let ((cell (aref (game-map *state*) row col)))
-                        (cond ((= cell 0) (princ #\. f))
-                              ((= cell 1) (princ #\% f))
-                              ((= cell 2) (princ #\* f))
-                              ((< cell 200) (princ (code-char (- cell 3)) f))
-                              (t (princ (code-char (- cell 65)) f)))))
-                              ;(t (princ #\. f)))))
+                   for tile = (aref (game-map *state*) row col)
+                   for type = (type-of tile)
+                   do (case type
+                        ;(land  (princ #\. f))
+                        ;(water (princ #\% f))
+                        ;(food  (princ #\* f))
+                        ;(ant (if (dead tile)
+                        ;         (princ (code-char (+ (pid tile) 65)) f)
+                        ;         (princ (code-char (+ (pid tile) 97)) f)))
+                        ;(otherwise (error "Unknown tile type: ~S (~D,~D)"
+                        ;                  tile row col))))
+                        (water     (princ #\% f))
+                        (otherwise (princ #\. f))))
              (if (< (+ row 1) (rows *state*))
                  (format f "\",~%")
                  (format f "\"~%")))
     (format f (mkstr "             ]~%"
                      "        },~%"
-                     "        \"ants\": [],~%"
+                     "        \"ants\": [~%"))
+    (loop for ant in (antz *state*)
+          for i from 0
+          do (format f "            [ ~D, ~D, ~D, ~D, ~D, ~D, ~S ]~A~%"
+                     (initial-row ant)
+                     (initial-col ant)
+                     0 ;(start-turn ant)
+                     0
+                     (if (dead ant)
+                         (end-turn ant)
+                         (+ (turns *state*) 1))
+                     (pid ant)
+                     (coerce (orders ant) 'string)
+                     (if (< i (- (length (antz *state*)) 1)) "," "")))
+    (format f (mkstr "        ],~%"
                      "        \"scores\": [~%"))
     (loop for score across (scores *state*)
           for i from 0
@@ -405,8 +441,20 @@
                (princ "," f))
              (terpri f))
     (format f (mkstr "        ]~%"
-                     "    }~%"
-                     "}~%"))))
+                     "    },~%"
+                     "    \"score\": [~A],~%"
+                     "    \"status\": [~A]~%")
+            (ant-count ",")
+            ;; TODO merge with same code in MAIN into a function
+            (with-output-to-string (s)
+              (loop for ant across (ants *state*)
+                    for i from 0
+                    do (if (> ant 0)
+                           (prin1 "survived" s)
+                           (prin1 "eliminated" s))
+                       (when (< i (- (length (ants *state*)) 1))
+                         (princ ", " s)))))
+    (format f (mkstr "}~%"))))
 
 
 ;; TODO implement vision code
@@ -424,16 +472,16 @@
                                        (cond ((= bot-id (pid tile))
                                               0)
                                              ((< bot-id (pid tile))
-                                              (+ (pid tile) 1))
+                                              (pid tile))
                                              ((> bot-id (pid tile))
-                                              (- (pid tile) 1))))
+                                              (+ (pid tile) 1))))
                                (format input "a ~D ~D ~D~%" row col
                                        (cond ((= bot-id (pid tile))
                                               0)
                                              ((< bot-id (pid tile))
-                                              (+ (pid tile) 1))
+                                              (pid tile))
                                              ((> bot-id (pid tile))
-                                              (- (pid tile) 1)))))))))
+                                              (+ (pid tile) 1)))))))))
   (format input "go~%")
   (force-output input))
 
@@ -469,21 +517,23 @@
 (defun spawn-ants ()
   (let ((ants (loop for row from 0 below (rows *state*)
                     append (loop for col from 0 below (cols *state*)
-                                 for value = (aref (game-map *state*) row col)
-                                 when (and (>= value 100) (<= value 199))
-                                   collect (list value row col))))
+                                 for tile = (aref (game-map *state*) row col)
+                                 when (and (typep tile 'ant)
+                                           (not (dead tile)))
+                                   collect tile)))
         (foods (loop for row from 0 below (rows *state*)
                      append (loop for col from 0 below (cols *state*)
-                                  when (= 2 (aref (game-map *state*) row col))
-                                    collect (list row col)))))
+                                  for tile = (aref (game-map *state*) row col)
+                                  when (typep tile 'food)
+                                    collect tile))))
     (loop for food in foods
-          for frow = (elt food 0)
-          for fcol = (elt food 1)
+          for frow = (row food)
+          for fcol = (col food)
           for nearby-ant-ids = nil
           do (loop for ant in ants
-                   for aid = (elt ant 0)
-                   for arow = (elt ant 1)
-                   for acol = (elt ant 2)
+                   for aid = (pid ant)
+                   for arow = (row ant)
+                   for acol = (col ant)
                    do (when (<= (distance frow fcol arow acol)
                                 (sqrt (spawn-radius2 *state*)))
                         (pushnew aid nearby-ant-ids))
@@ -491,17 +541,24 @@
                                   ;(logmsg "Spawning new ant: "
                                   ;        (first nearby-ant-ids) "~%")
                                   (incf (aref (ants *state*)
-                                              (- (first nearby-ant-ids) 100)))
+                                              (first nearby-ant-ids)))
                                   (incf (aref (aref (scores *state*)
-                                                (- (first nearby-ant-ids) 100))
+                                                    (first nearby-ant-ids))
                                               (turn *state*)))
-                                  (setf (aref (game-map *state*) frow fcol)
-                                        (first nearby-ant-ids)))
+                                  ;; TODO needs to spawn ant with correct
+                                  ;; start- and conversion-turns
+                                  (let ((ant (make-instance 'ant :row frow
+                                               :col fcol
+                                               :pid (first nearby-ant-ids)
+                                               :start-turn (turn *state*))))
+                                    (push ant (antz *state*))
+                                    (setf (aref (game-map *state*) frow fcol)
+                                          ant)))
                                  ((> (length nearby-ant-ids) 1)
                                   ;(logmsg "Multiple contestants for food at "
                                   ;        frow ":" fcol ". Removing...~%")
                                   (setf (aref (game-map *state*) frow fcol)
-                                        0)))))))
+                                        +land+)))))))
 
 
 ;; Very simple random food spawning.  Collects all land tile's coordinates
@@ -509,7 +566,8 @@
 (defun spawn-food ()
   (let ((food (loop for row from 0 below (rows *state*)
                     append (loop for col from 0 below (cols *state*)
-                                 when (= 0 (aref (game-map *state*) row col))
+                                 for tile = (aref (game-map *state*) row col)
+                                 when (typep tile 'land)
                                    collect (list row col))
                       into result
                     finally (return (loop repeat (players *state*)
@@ -517,7 +575,9 @@
     (loop for rc in food
           for row = (elt rc 0)
           for col = (elt rc 1)
-          do (setf (aref (game-map *state*) row col) 2))))
+          do (setf (aref (game-map *state*) row col)
+                   (make-instance 'food :row row :col col
+                                  :start-turn (turn *state*))))))
 
 
 (defun start-bots ()
@@ -537,6 +597,11 @@
 (defun wait-for-output (output turn-start-time)
   (loop until (or (listen output)
                   (no-turn-time-left-p turn-start-time))))
+
+
+(defun water? (row col direction)
+  (let ((nl (new-location row col direction)))
+    (typep (aref (game-map *state*) (elt nl 0) (elt nl 1)) 'water)))
 
 
 ;;; Main Program

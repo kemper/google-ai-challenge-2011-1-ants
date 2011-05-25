@@ -397,16 +397,14 @@
                    for tile = (aref (game-map *state*) row col)
                    for type = (type-of tile)
                    do (case type
-                        ;(land  (princ #\. f))
-                        ;(water (princ #\% f))
-                        ;(food  (princ #\* f))
-                        ;(ant (if (dead tile)
-                        ;         (princ (code-char (+ (pid tile) 65)) f)
-                        ;         (princ (code-char (+ (pid tile) 97)) f)))
-                        ;(otherwise (error "Unknown tile type: ~S (~D,~D)"
-                        ;                  tile row col))))
-                        (water     (princ #\% f))
-                        (otherwise (princ #\. f))))
+                        (land  (princ #\. f))
+                        (water (princ #\% f))
+                        (food  (princ #\* f))
+                        (ant (if (dead tile)
+                                 (princ (code-char (+ (pid tile) 65)) f)
+                                 (princ (code-char (+ (pid tile) 97)) f)))
+                        (otherwise (error "Unknown tile type: ~S (~D,~D)"
+                                          tile row col))))
              (if (< (+ row 1) (rows *state*))
                  (format f "\",~%")
                  (format f "\"~%")))
@@ -664,7 +662,7 @@
             for i from 0 below (length (bots *state*))
             do (setf (aref scores i)
                      (make-array 1 :element-type 'fixnum :fill-pointer 1
-                                 :initial-element 0))
+                                 :initial-element 1))
             finally (setf (slot-value *state* 'scores) scores))
       (play-game))
     ;(logmsg "[  end] " (current-date-time-string) "~%")

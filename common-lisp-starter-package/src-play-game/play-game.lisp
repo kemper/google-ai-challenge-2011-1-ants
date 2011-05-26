@@ -232,20 +232,21 @@
                       (setf (slot-value *state* 'ants)
                             (make-array n-players :element-type 'fixnum
                                         :initial-element 0))
-                      (setf (slot-value *state* 'players) n-players)))
+                      (setf (slot-value *state* 'n-players) n-players)))
                    ((and (starts-with line "m ") (null (cols *state*)))
                     (logmsg "~&Map missing \"cols n\" line. Aborting...~%")
                     (quit 1))
                    ((and (starts-with line "m ") (null (rows *state*)))
                     (logmsg "~&Map missing \"rows n\" line. Aborting...~%")
                     (quit 1))
-                   ((and (starts-with line "m ") (null (players *state*)))
+                   ((and (starts-with line "m ") (null (n-players *state*)))
                     (logmsg "~&Map missing \"players n\" line. Aborting...~%")
                     (quit 1))
                    ((and (starts-with line "m ")
-                         (< (length (bots *state*)) (players *state*)))
-                    (logmsg "~&Map needs " (players *state*) " players but "
-                            "only " (length (bots *state*)) " were entered on "
+                         (< (length (remainder)) (n-players *state*)))
+                    (logmsg "~&Map needs " (n-players *state*) " players but "
+                            ;"only " (length (bots *state*)) " were entered on "
+                            "only " (length (remainder)) " were entered on "
                             "the command-line. Aborting...~%")
                     (quit 1))
                    ((and (starts-with line "m ") (null (game-map *state*)))
@@ -368,8 +369,8 @@
            (setf (slot-value *state* 'turn-time) (parse-integer value)))))
   (unless (map-file *state*)
     (help)
-    (quit))
-  (setf (slot-value *state* 'bots) (loop for bot in (remainder) collect bot)))
+    (quit)))
+  ;; (remainder) is processed in (start-bots)
 
 
 (defun queue-ant-order (bot-id string)
@@ -414,21 +415,21 @@
                      "    \"game_id\": 0,~%"
                      "    \"location\": \"localhost\",~%"
                      "    \"player_info\": ["))
-    (loop for i from 0 below (players *state*)
+    (loop for i from 0 below (n-players *state*)
           do (princ "{}" f)
-             (when (< i (- (players *state*) 1))
+             (when (< i (- (n-players *state*) 1))
                (princ ", " f)))
     (format f (mkstr "],~%"
                      "    \"rank\": ["))
-    (loop for i from 0 below (players *state*)
+    (loop for i from 0 below (n-players *state*)
           do (princ "0" f)
-             (when (< i (- (players *state*) 1))
+             (when (< i (- (n-players *state*) 1))
                (princ ", " f)))
     (format f (mkstr "],~%"
                      "    \"replayformat\": \"json\",~%"
                      "    \"replaydata\": {~%"
                      "        \"revision\": 2,~%"
-                     "        \"players\": " (players *state*) ",~%"
+                     "        \"players\": " (n-players *state*) ",~%"
                      "        \"loadtime\": " (load-time *state*) ",~%"
                      "        \"turntime\": " (turn-time *state*) ",~%"
                      "        \"turns\": " (turns *state*) ",~%"
@@ -610,7 +611,7 @@
                                  when (typep tile 'land)
                                    collect (list row col))
                       into result
-                    finally (return (loop repeat (players *state*)
+                    finally (return (loop repeat (n-players *state*)
                                           collect (random-elt result))))))
     (loop for rc in food
           for row = (elt rc 0)
@@ -621,8 +622,13 @@
 
 
 (defun start-bots ()
-  (loop for bot in (bots *state*) collect (run-program bot) into procs
-        finally (setf (slot-value *state* 'procs) procs)))
+  (loop for command-line in (remainder)
+        for proc = (run-program command-line)
+        for bot = (make-instance 'bot :command-line command-line :process proc)
+        collect bot into bots
+        collect proc into procs
+        finally (setf (slot-value *state* 'bots) bots
+                      (slot-value *state* 'procs) procs)))
 
 
 (defun turn-time-left-p (turn-start-time)

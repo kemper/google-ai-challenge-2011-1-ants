@@ -27,6 +27,20 @@
    (orders :reader orders :initform (make-array 0 :fill-pointer 0))))
 
 
+(let ((counter 0))
+  (flet ((unique-bot-id ()
+           (- (incf counter) 1)))
+    (defclass bot ()
+      ((bot-id :reader bid :initform (unique-bot-id))
+       (status :reader status :initform "survived")
+       (command-line :reader command-line :initarg :command-line :initform nil)
+       (process :reader process :initarg :process :initform nil)
+       (ants :reader ants :initform nil)
+       (scores :reader scores
+               :initform (make-array 1 :fill-pointer 0 :element-type 'fixnum
+                                       :initial-element 0))))))
+
+
 (defclass state ()
   ((input :reader input :initarg :input :initform *standard-input*)
    (output :reader output :initarg :output :initform *standard-output*)
@@ -57,6 +71,6 @@
    (bots :reader bots :initarg :bots :initform nil)
    (map-file :reader map-file :initform nil)
    (orders :accessor orders :initarg :orders :initform nil)
-   (players :reader players :initarg :players :initform nil)
+   (n-players :reader n-players :initarg :n-players :initform nil)
    (procs :reader procs :initarg :procs :initform nil)
    (scores :reader scores :initarg :scores :initform nil)))

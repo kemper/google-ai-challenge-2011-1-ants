@@ -7,6 +7,8 @@
 
 ;; This MAIN is used on the competition server.
 (defun main (&key (log nil) (state (make-instance 'state)) (verbose nil))
+  "Main game loop: parses the (initial) game state and calls DO-TURN and
+  FINISH-TURN."
   (let ((*state* state)
         (*verbose* verbose))
     (cond ((and log *verbose*)
@@ -23,7 +25,7 @@
             when end-of-game-p do (loop-finish)
             do (logmsg "--- turn: " (turn *state*) " ---~%")
                (logmsg "~&[start] " (current-date-time-string) "~%")
-               (bot-think)
+               (bot-think)  ; TODO rename to DO-TURN
                (finish-turn)
                (logmsg "~&[  end] move took " (turn-time-used) " seconds ("
                        (turn-time-remaining) " left).~%")))))

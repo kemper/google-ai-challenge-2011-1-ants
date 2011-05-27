@@ -13,6 +13,8 @@
 
 
 (defun distance (row1 col1 row2 col2)
+  "Returns the shortest distance between ROW1,COL1 and ROW2,COL2 for a grid
+  that wraps around."
   (let* ((drow (abs (- row1 row2)))
          (dcol (abs (- col1 col2)))
          (minrow (min drow (- (rows *state*) drow)))
@@ -45,6 +47,8 @@
 
 
 (defun new-location (row col direction)
+  "Returns '(NEW-ROW NEW-COL) for ROW,COL and DIRECTION for a grid that
+  wraps around."
   (if (not (member direction '(:north :east :south :west)))
       (progn (logmsg "[new-location] Illegal direction: " direction "~%")
              (list row col))
@@ -70,6 +74,7 @@
 
 
 (defun par-value (string)
+  "Helper function for parsing game state input from the server."
   (parse-integer (subseq string (position #\space string) (length string))))
 
 
@@ -115,11 +120,16 @@
 
 
 (let ((time-units (/ 1.0 internal-time-units-per-second)))
+  ;; TODO correctly name function: doesn't return wall time
+  ;; TODO use DOUBLE-FLOATs?
   (defun wall-time (&key (offset 0))
+    "Returns the time in seconds (as a FLOAT) since SBCL was started."
     (+ (* (get-internal-real-time) time-units)
        offset)))
 
 
 (defun water? (row col direction)
+  "Returns T if the tile in the DIRECTION of ROW,COL is water, otherwise
+  returns NIL."
   (let ((nl (new-location row col direction)))
     (= 1 (aref (game-map *state*) (elt nl 0) (elt nl 1)))))

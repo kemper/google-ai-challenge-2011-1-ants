@@ -18,7 +18,8 @@
 ;;; Functions
 
 (defun parse-game-parameters ()
-  "Modifies *STATE*."
+  "Parses turn 0 game parameters and sets them in *STATE*.  Also creates
+  initial game map and assigns it to (GAME-MAP *STATE*)."
   (loop for line = (read-line (input *state*) nil)
         until (starts-with line "ready")
         do (cond ((starts-with line "attackradius2 ")
@@ -45,7 +46,9 @@
 
 
 (defun parse-game-state ()
-  "Modifies *STATE*."
+  "Calls either PARSE-TURN or PARSE-GAME-PARAMETERS depending on the line
+  on standard input.  Modifies *STATE* and returns T if the game has ended,
+  otherwise NIL."
   (setf (slot-value *state* 'turn-start-time) (wall-time))
   (reset-some-state)
   (loop for line = (read-line (input *state*) nil)
@@ -65,7 +68,8 @@
 
 
 (defun parse-turn ()
-  "Modifies *STATE* indirectly through RESET-GAME-MAP and PARSE-*."
+  "Parses a typical turn.  Modifies *STATE* indirectly through RESET-GAME-MAP
+  and the SET-* functions."
   (reset-game-map)
   (loop for line = (read-line (input *state*) nil)
         until (starts-with line "go")
@@ -76,7 +80,8 @@
 
 
 (defun reset-game-map ()
-  "Modifies *STATE*."
+  "Sets all tiles on the map to land (0) if they're not already land or
+  water (1).  Modifies (GAME-MAP *STATE*)."
   (loop with game-map = (game-map *state*)
         with dim = (array-dimensions game-map)
         for row from 0 below (first dim)
@@ -86,14 +91,16 @@
 
 
 (defun reset-some-state ()
-  "Modifies *STATE*."
+  "Sets (ENEMY-ANTS *STATE*), (MY-ANTS *STATE*) and (FOOD *STATE*) to NIL."
   (setf (slot-value *state* 'enemy-ants) nil
         (slot-value *state* 'my-ants)    nil
         (slot-value *state* 'food)       nil))
 
 
 (defun set-ant (string)
-  "Modifies *STATE*."
+  "Parses the \"a row col owner\" STRING and sets the specific map tile to
+  an ant of owner.  Modifies (ENEMY-ANTS *STATE*), (MY-ANTS *STATE*) and
+  (GAME-MAP *STATE*)."
   (let* ((split (split-state-string string))
          (row (parse-integer (elt split 1)))
          (col (parse-integer (elt split 2)))
@@ -105,7 +112,8 @@
 
 
 (defun set-dead (string)
-  "Modifies *STATE*."
+  "Parses the \"d row col owner\" STRING and sets the specific map tile to
+  a dead ant of owner.  Modifies (GAME-MAP *STATE*)."
   (let* ((split (split-state-string string))
          (row (parse-integer (elt split 1)))
          (col (parse-integer (elt split 2)))
@@ -115,7 +123,8 @@
 
 
 (defun set-food (string)
-  "Modifies *STATE*."
+  "Parses the \"f row col\" STRING and sets the specific map tile to food.
+  Modifies (FOOD *STATE*) and (GAME-MAP *STATE*)."
   (let* ((split (split-state-string string))
          (row (parse-integer (elt split 1)))
          (col (parse-integer (elt split 2))))
@@ -124,7 +133,8 @@
 
 
 (defun set-water (string)
-  "Modifies *STATE*."
+  "Parses the \"w row col\" STRING and sets the specific map tile to water.
+  Modifies (GAME-MAP *STATE*)."
   (let* ((split (split-state-string string))
          (row (parse-integer (elt split 1)))
          (col (parse-integer (elt split 2))))

@@ -9,6 +9,9 @@
 
 ;;; Functions
 
+;; This is the actual 'AI'.  Very simple currently: loops through each of your
+;; ants and issues an order to go either north, east, south or west if the tile
+;; in the direction is not a water tile.
 (defun bot-think ()
   (loop for ant in (reverse (my-ants *state*))
         for row = (elt ant 0)

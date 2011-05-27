@@ -34,6 +34,12 @@
         (t host)))
 
 
+(defun last1 (sequence)
+  (let ((length (length sequence)))
+    (when (> length 0)
+      (elt sequence (- length 1)))))
+
+
 (defun logmsg (&rest args)
   (when *verbose*
     (format (log-stream *state*) (apply #'mkstr args))

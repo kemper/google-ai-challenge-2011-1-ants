@@ -2,8 +2,17 @@
 ;;;;
 ;;;; This is really a hack job currently.
 ;;;;
-;;;; We should keep seperate lists of ants for each player and also for food
-;;;; so resolutions can be checked quicker than going over the map every time.
+;;;; Let me see if I can get this right: (bot-id bot) is assigned in the order
+;;;; of how they appear on the commandline by looping through (remainder)
+;;;; and calling (unique-bot-id) each time a bot class is instatiated.
+;;;;
+;;;; The initial ants / "ant tiles", however, are assigned IDs in the order
+;;;; they appear on the map (by going through it from left-to-right, top-to-
+;;;; bottom).  So the alphabetic character used on the map to signify an
+;;;; ant tile has NO bearing on the ID it will get.  These are only used to
+;;;; differentiate between ant tiles.
+;;;;
+;;;; This is all in the name of compatibility with playgame.py.
 
 (in-package :play-game)
 

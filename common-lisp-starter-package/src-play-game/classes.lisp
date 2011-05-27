@@ -36,9 +36,11 @@
        (command-line :reader command-line :initarg :command-line :initform nil)
        (process :reader process :initarg :process :initform nil)
        (ants :reader ants :initform nil)
+       (dead-ants :reader dead-ants :initform nil)
        (scores :reader scores
-               :initform (make-array 1 :fill-pointer 0 :element-type 'fixnum
-                                       :initial-element 0))))))
+               :initform (make-array 1 :element-type 'fixnum :fill-pointer 1
+                                       ;:initial-element 0))))))
+                                       :initial-element 1))))))
 
 
 (defclass state ()
@@ -66,11 +68,7 @@
 
 (defclass play-game-state (state)
   ((log-stream :reader log-stream :initform *debug-io*)
-   (ants :reader ants :initform nil)
-   (antz :accessor antz :initform nil)  ; yeah...
-   (bots :reader bots :initarg :bots :initform nil)
+   (bots :reader bots :initform (make-array 0 :fill-pointer 0))
    (map-file :reader map-file :initform nil)
-   (orders :accessor orders :initarg :orders :initform nil)
    (n-players :reader n-players :initarg :n-players :initform nil)
-   (procs :reader procs :initarg :procs :initform nil)
-   (scores :reader scores :initarg :scores :initform nil)))
+   (orders :accessor orders :initarg :orders :initform nil)))

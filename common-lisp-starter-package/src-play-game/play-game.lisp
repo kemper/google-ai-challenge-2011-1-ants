@@ -65,8 +65,7 @@
   ;      for bid = (when battle (- (aref (game-map *state*) brow bcol) 99))
   ;      do (logmsg "Ants " aid ":" arow ":" acol " and " bid ":" brow ":" bcol
   ;                 " fought...~%")
-  ;         ;; TODO implement proper battle resolution and adjusting of
-  ;         ;;      (ants *state*)
+  ;         ;; TODO implement proper battle resolution
   ;         (setf (aref (game-map *state*) arow acol) (+ aid 199)
   ;               (aref (game-map *state*) brow bcol) (+ bid 199)))
   )
@@ -144,14 +143,15 @@
 
 (defun do-turn (turn)
   (setf (orders *state*) nil)
-  (loop for proc in (procs *state*)
-        for i from 0
-        for bot = (elt (bots *state*) i)
+  (loop for bot across (bots *state*)
+        for command-line = (command-line bot)
+        for id = (bid bot)
+        for proc = (process bot)
         for pin = (sb-ext:process-input proc)
         for pout = (sb-ext:process-output proc)
         do  (if (equal :running (sb-ext:process-status proc))
-                (send-game-state i pin turn)
-                (logmsg i ":" bot " has stopped running...~%"))
+                (send-game-state id pin turn)
+                (logmsg id ":" command-line " has stopped running...~%"))
            ;; TODO don't do this when bot has stopped running
            (let ((turn-start (wall-time)))
              (wait-for-output pout turn-start)
@@ -159,32 +159,21 @@
                    with end-loop = nil
                    until end-loop
                    do (cond ((no-turn-time-left-p turn-start)
-                             (logmsg i ":" bot " took too long.~%")
+                             (logmsg id ":" command-line " timed out.~%")
                              (setf end-loop t))
                             ((listen pout)
                              (let ((line (read-line pout nil)))
                                (when (starts-with line "go")
-                                 ;(logmsg i ":" bot ": go~%")
                                  (loop-finish))
-                               ;(logmsg i ":" bot ": " line "~%")
                                (when (starts-with line "o ")
-                                 (queue-ant-order i line))))))))
+                                 (queue-ant-order id line))))))))
   (move-ants))
 
 
 (defun init-scores-for-new-turn ()
-  (loop for vec across (scores *state*)
-        for score = (aref vec (- (turn *state*) 1))
-        do (vector-push-extend score vec)))
-
-
-(defun initialise-scores ()
-  (loop with scores = (make-array (length (bots *state*)))
-        for i from 0 below (length (bots *state*))
-        do (setf (aref scores i)
-                 (make-array 1 :element-type 'fixnum :fill-pointer 1
-                             :initial-element 1))
-        finally (setf (slot-value *state* 'scores) scores)))
+  (loop for bot across (bots *state*)
+        for prev-turn-score = (aref (scores bot) (- (turn *state*) 1))
+        do (vector-push-extend prev-turn-score (scores bot))))
 
 
 (defun key2dir (key)
@@ -197,7 +186,7 @@
 (defun log-new-turn-stats ()
   (when *verbose*
     (format (log-stream *state*) "turn ~4D stats: ant_count: [~A]~%"
-            (turn *state*) (players-score-string :sep ", "))
+            (turn *state*) (players-ant-count-string :sep ", "))
     (force-output (log-stream *state*))))
 
 
@@ -237,11 +226,7 @@
                    ((starts-with line "rows ")
                     (setf (slot-value *state* 'rows) (par-value line)))
                    ((starts-with line "players ")
-                    (let ((n-players (par-value line)))
-                      (setf (slot-value *state* 'ants)
-                            (make-array n-players :element-type 'fixnum
-                                        :initial-element 0))
-                      (setf (slot-value *state* 'n-players) n-players)))
+                    (setf (slot-value *state* 'n-players) (par-value line)))
                    ((and (starts-with line "m ") (null (cols *state*)))
                     (logmsg "~&Map missing \"cols n\" line. Aborting...~%")
                     (quit 1))
@@ -260,7 +245,8 @@
                     (quit 1))
                    ((and (starts-with line "m ") (null (game-map *state*)))
                     (setf (slot-value *state* 'game-map)
-                          (make-array (list (rows *state*) (cols *state*))))
+                          (make-array (list (rows *state*) (cols *state*))
+                                      :initial-element 'abc123))
                     (parse-map-line (game-map *state*) line rows)
                     (incf rows))
                    ((starts-with line "m ")
@@ -290,8 +276,7 @@
                            (ant (make-instance 'ant :initial-row row
                                   :initial-col col :row row :col col :pid pid
                                   :start-turn (turn *state*))))
-                      (incf (aref (ants *state*) pid))
-                      (push ant (antz *state*))
+                      (push ant (slot-value (aref (bots *state*) pid) 'ants))
                       ant))))))
 
 
@@ -307,24 +292,32 @@
                              (update-immobile-ant-orders)))))
 
 
+(defun players-ant-count-string (&key (sep " "))
+  (with-output-to-string (s)
+    (loop for bot across (bots *state*)
+          for i from 1
+          do (princ (length (ants bot)) s)
+             (when (< i (length (bots *state*)))
+               (princ sep s)))))
+
+
 (defun players-score-string (&key (sep " "))
   (with-output-to-string (s)
-    (loop for i from 0 below (length (ants *state*))
-          do (princ (aref (ants *state*) i) s)
-             (when (< i (- (length (ants *state*)) 1))
+    (loop for bot across (bots *state*)
+          for i from 1
+          do (princ (last1 (scores bot)) s)
+             (when (< i (length (bots *state*)))
                (princ sep s)))))
 
 
 (defun players-status-string (&key (sep " ") (quotes nil))
   (with-output-to-string (s)
-    (loop for ant across (ants *state*)
-          for i from 0
+    (loop for bot across (bots *state*)
+          for i from 1
           do (when quotes (princ "\"" s))
-             (if (> ant 0)
-                 (princ "survived" s)
-                 (princ "eliminated" s))
+             (princ (status bot) s)
              (when quotes (princ "\"" s))
-             (when (< i (- (length (ants *state*)) 1))
+             (when (< i (length (bots *state*)))
                (princ sep s)))))
 
 
@@ -407,12 +400,10 @@
   ;; Perhaps just checking for "python", "ruby", etc. would be better...
   (if (find #\space program)
       (let ((split (split-sequence #\space program)))
-        ;(logmsg (format nil "Starting: ~S ~S~%" (car split) (cdr split)))
         (sb-ext:run-program (car split) (cdr split) :search t :wait nil
                             :input :stream :output :stream))
-      (progn ;(logmsg (format nil "Starting: ~S~%" program))
-             (sb-ext:run-program (merge-pathnames program) args :wait nil
-                                 :input :stream :output :stream))))
+      (sb-ext:run-program (merge-pathnames program) args :wait nil
+                          :input :stream :output :stream)))
 
 
 ;; See: https://github.com/aichallenge/aichallenge/wiki/Ants-replay-format
@@ -469,33 +460,36 @@
     (format f (mkstr "             ]~%"
                      "        },~%"
                      "        \"ants\": [~%"))
-    ;; sorting for playgame.py output compatibility
-    (loop for ant in (sort (copy-seq (antz *state*))
-                           (lambda (a b) (< (pid a) (pid b))))
-          for i from 0
-          do (format f "            [ ~D, ~D, ~D, ~D, ~D, ~D, ~S ]~A~%"
-                     (initial-row ant)
-                     (initial-col ant)
-                     0 ;(start-turn ant)
-                     0
-                     (if (dead ant)
-                         (end-turn ant)
-                         (+ (turns *state*) 1))
-                     (pid ant)
-                     (coerce (orders ant) 'string)
-                     (if (< i (- (length (antz *state*)) 1)) "," "")))
+    (loop for bot across (bots *state*)
+          for i from 1
+          do (loop for ant in (append (ants bot) (dead-ants bot))
+                   for j from 1
+                   do (format f "            [ ~D, ~D, ~D, ~D, ~D, ~D, ~S ]~A~%"
+                              (initial-row ant)
+                              (initial-col ant)
+                              0 ;(start-turn ant)
+                              0
+                              (if (dead ant)
+                                  (end-turn ant)
+                                  (+ (turns *state*) 1))
+                              (pid ant)
+                              (coerce (orders ant) 'string)
+                              (if (or (< i (length (bots *state*)))
+                                      (< j (length (ants bot))))
+                                   ","
+                                   ""))))
     (format f (mkstr "        ],~%"
                      "        \"scores\": [~%"))
-    (loop for score across (scores *state*)
-          for i from 0
+    (loop for bot across (bots *state*)
+          for i from 1
           do (princ "            [" f)
-             (loop for n across score
-                   for i from 0
+             (loop for n across (scores bot)
+                   for j from 1
                    do (princ n f)
-                      (when (< i (- (length score) 1))
+                      (when (< j (length (scores bot)))
                         (princ "," f)))
              (princ "]" f)
-             (when (< i (- (length (scores *state*)) 1))
+             (when (< i (length (bots *state*)))
                (princ "," f))
              (terpri f))
     (format f (mkstr "        ]~%"
@@ -505,6 +499,13 @@
             (players-score-string :sep ", ")
             (players-status-string :sep ", " :quotes t))
     (format f (mkstr "}~%"))))
+
+
+;; A hack to make to scores compatible with playgame.py.  (This is mainly
+;; for debugging, running diffs and unit tests.)
+(defun scores-compatibility-hack ()
+  (loop for bot across (bots *state*)
+        do (setf (aref (scores bot) 0) 0)))
 
 
 ;; TODO implement vision code
@@ -537,9 +538,10 @@
 
 
 (defun send-initial-game-state ()
-  (loop for proc in (procs *state*)
-        for i from 0
-        for bot = (elt (bots *state*) i)
+  (loop for bot across (bots *state*)
+        for command-line = (command-line bot)
+        for id = (bid bot)
+        for proc = (process bot)
         for pin = (sb-ext:process-input proc)
         for pout = (sb-ext:process-output proc)
         do (if (equal :running (sb-ext:process-status proc))
@@ -551,16 +553,17 @@
                          (attack-radius2 *state*)
                          (spawn-radius2 *state*))
                  (force-output pin))
-               (logmsg i ":" bot " has stopped running...~%"))
+               (logmsg id ":" command-line " has stopped running...~%"))
            ;; TODO don't do this when bot has stopped running
            (let ((turn-start (wall-time)))
              (wait-for-output pout turn-start)
              (cond ((no-turn-time-left-p turn-start)
-                    (logmsg i ":" bot " took too long.~%"))
+                    (logmsg id ":" command-line " timed out.~%"))
                    ((listen pout)
                     (let ((line (read-line pout nil)))
                       (unless (starts-with line "go")
-                        (logmsg i ":" bot " sent junk: " line "~%"))))))))
+                        (logmsg id ":" command-line " sent junk: " line
+                                "~%"))))))))
 
 
 ;; TODO very innefficient: fix
@@ -590,10 +593,8 @@
                    finally (cond ((= 1 (length nearby-ant-ids))
                                   ;(logmsg "Spawning new ant: "
                                   ;        (first nearby-ant-ids) "~%")
-                                  (incf (aref (ants *state*)
-                                              (first nearby-ant-ids)))
-                                  (incf (aref (aref (scores *state*)
-                                                    (first nearby-ant-ids))
+                                  (incf (aref (scores (aref (bots *state*)
+                                                       (first nearby-ant-ids)))
                                               (turn *state*)))
                                   ;; TODO needs to spawn ant with correct
                                   ;; start- and conversion-turns
@@ -601,7 +602,10 @@
                                                :col fcol
                                                :pid (first nearby-ant-ids)
                                                :start-turn (turn *state*))))
-                                    (push ant (antz *state*))
+                                    (push ant
+                                          (slot-value (aref (bots *state*)
+                                                        (first nearby-ant-ids))
+                                                      'ants))
                                     (setf (aref (game-map *state*) frow fcol)
                                           ant)))
                                  ((> (length nearby-ant-ids) 1)
@@ -634,10 +638,7 @@
   (loop for command-line in (remainder)
         for proc = (run-program command-line)
         for bot = (make-instance 'bot :command-line command-line :process proc)
-        collect bot into bots
-        collect proc into procs
-        finally (setf (slot-value *state* 'bots) bots
-                      (slot-value *state* 'procs) procs)))
+        do (vector-push-extend bot (bots *state*))))
 
 
 (defun turn-time-left-p (turn-start-time)
@@ -646,10 +647,11 @@
 
 
 (defun update-immobile-ant-orders ()
-  (loop for ant in (antz *state*)
-        for orders = (orders ant)
-        when (< (length orders) (turn *state*))
-          do (vector-push-extend #\- orders)))
+  (loop for bot across (bots *state*)
+        do (loop for ant in (ants bot)
+                 for orders = (orders ant)
+                 when (< (length orders) (turn *state*))
+                 do (vector-push-extend #\- orders))))
 
 
 (defun wait-for-output (output turn-start-time)
@@ -705,18 +707,27 @@
 	  :description "Print version/release number and exit.")))
 
 
+(defun debug-output ()
+  (logmsg "===============================================================~%")
+  (describe *state*)
+  (loop for bot across (bots *state*)
+        do (describe bot))
+  (logmsg "===============================================================~%"))
+
+
 (defun main ()
   (make-context)
   (let ((*state* (make-instance 'play-game-state :error-stream *debug-io*))
         (*verbose* nil))
     (process-command-line-options)
+    (start-bots)
     (parse-map (map-file *state*))
     (logmsg "running for " (turns *state*) " turns~%")
     (handler-bind (#+sbcl (sb-sys:interactive-interrupt #'user-interrupt))
                    ;(error #'error-handler))
-      (start-bots)
-      (initialise-scores)
       (play-game))
     (logmsg "score " (players-score-string) "~%")
     (logmsg "status " (players-status-string) "~%")
+    ;(debug-output)
+    (scores-compatibility-hack)
     (save-replay)))

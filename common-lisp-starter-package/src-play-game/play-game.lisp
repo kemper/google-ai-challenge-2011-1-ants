@@ -4,7 +4,7 @@
 ;;;;
 ;;;; Let me see if I can get this right: (bot-id bot) is assigned in the order
 ;;;; of how they appear on the commandline by looping through (remainder)
-;;;; and calling (unique-bot-id) each time a bot class is instatiated.
+;;;; and calling (unique-bot-id) each time a bot class is instantiated.
 ;;;;
 ;;;; The initial ants / "ant tiles", however, are assigned IDs in the order
 ;;;; they appear on the map (by going through it from left-to-right, top-to-
@@ -149,9 +149,9 @@
         for proc = (process bot)
         for pin = (sb-ext:process-input proc)
         for pout = (sb-ext:process-output proc)
-        do  (if (equal :running (sb-ext:process-status proc))
-                (send-game-state id pin turn)
-                (logmsg id ":" command-line " has stopped running...~%"))
+        do (if (equal :running (sb-ext:process-status proc))
+               (send-game-state bot pin turn)
+               (logmsg id ":" command-line " has stopped running...~%"))
            ;; TODO don't do this when bot has stopped running
            (let ((turn-start (wall-time)))
              (wait-for-output pout turn-start)
@@ -508,31 +508,43 @@
         do (setf (aref (scores bot) 0) 0)))
 
 
-;; TODO implement vision code
-(defun send-game-state (bot-id input turn)
+(defun send-game-state (bot input turn)
   (format input "turn ~D~%" turn)
-  (loop for row from 0 below (rows *state*)
-        do (loop for col from 0 below (cols *state*)
-                 for tile = (aref (game-map *state*) row col)
-                 for type = (type-of tile)
-                 do (case type
-                      (water (format input "w ~D ~D~%" row col))
-                      (food  (format input "f ~D ~D~%" row col))
-                      (ant (if (dead tile)
-                               (format input "d ~D ~D ~D~%" row col
-                                       (cond ((= bot-id (pid tile))
-                                              0)
-                                             ((< bot-id (pid tile))
-                                              (pid tile))
-                                             ((> bot-id (pid tile))
-                                              (+ (pid tile) 1))))
-                               (format input "a ~D ~D ~D~%" row col
-                                       (cond ((= bot-id (pid tile))
-                                              0)
-                                             ((< bot-id (pid tile))
-                                              (pid tile))
-                                             ((> bot-id (pid tile))
-                                              (+ (pid tile) 1)))))))))
+  (loop with id = (bid bot)
+        with vr = (floor (sqrt (view-radius2 *state*)))
+        for ant in (ants bot)
+        for arow = (row ant)
+        for acol = (col ant)
+        do (loop for roff from (- arow vr) to (+ arow vr)
+                 do (loop for coff from (- acol vr) to (+ acol vr)
+                          for wrc = (wrapped-row-col roff coff)
+                          for wrow = (elt wrc 0)
+                          for wcol = (elt wrc 1)
+                          for dist = (distance arow acol wrow wcol)
+                          ;when (and (<= dist vr) (/= 0 dist))
+                          when (<= dist vr) do
+                            (let* ((tile (aref (game-map *state*)
+                                               wrow wcol))
+                                   (type (type-of tile)))
+                              ;; this is within the "let*" above (outdented)
+                              (case type
+                                (water (format input "w ~D ~D~%" wrow wcol))
+                                (food (format input "f ~D ~D~%" wrow wcol))
+                                (ant (if (dead tile)
+                                         (format input "d ~D ~D ~D~%" wrow wcol
+                                                 (cond ((= id (pid tile))
+                                                        0)
+                                                       ((< id (pid tile))
+                                                        (pid tile))
+                                                       ((> id (pid tile))
+                                                        (+ (pid tile) 1))))
+                                         (format input "a ~D ~D ~D~%" wrow wcol
+                                                 (cond ((= id (pid tile))
+                                                        0)
+                                                       ((< id (pid tile))
+                                                        (pid tile))
+                                                       ((> id (pid tile))
+                                                        (+ (pid tile) 1)))))))))))
   (format input "go~%")
   (force-output input))
 
@@ -664,6 +676,15 @@
     (typep (aref (game-map *state*) (elt nl 0) (elt nl 1)) 'water)))
 
 
+(defun wrapped-row-col (row col)
+  (list (cond ((< row 0) (+ (rows *state*) row))  ; adding negative number
+              ((>= row (rows *state*)) (- row (rows *state*)))
+              (t row))
+        (cond ((< col 0) (+ (cols *state*) col))  ; adding negative number
+              ((>= col (cols *state*)) (- col (cols *state*)))
+              (t col))))
+
+
 ;;; Main Program
 
 (defsynopsis (:postfix "BOT1 BOT2 .. BOTn")
@@ -725,7 +746,10 @@
     (logmsg "running for " (turns *state*) " turns~%")
     (handler-bind (#+sbcl (sb-sys:interactive-interrupt #'user-interrupt))
                    ;(error #'error-handler))
-      (play-game))
+      ;(sb-sprof:with-profiling (:loop nil :report :flat)
+        (play-game)
+      ;  )
+      )
     (logmsg "score " (players-score-string) "~%")
     (logmsg "status " (players-status-string) "~%")
     ;(debug-output)

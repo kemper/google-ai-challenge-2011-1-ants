@@ -9,13 +9,17 @@
   ((row :reader row :initarg :row)
    (col :reader col :initarg :col)))
 
+
 (defclass land (tile) ())
-(defclass water (tile) ())
 
 
 (defclass food (tile)
   ((start-turn :reader start-turn :initarg :start-turn :initform 0)
    (conversion-turn :reader conversion-turn :initform 0)))
+
+
+(defclass water (tile)
+  ((seen-by :reader seen-by :initarg :seen-by)))
 
 
 (defclass ant (food)
@@ -27,11 +31,10 @@
    (orders :reader orders :initform (make-array 0 :fill-pointer 0))))
 
 
-(let ((counter 0))
-  (flet ((unique-bot-id ()
-           (- (incf counter) 1)))
+(let ((counter -1))
+  (flet ((unique-bot-id () (incf counter)))
     (defclass bot ()
-      ((bot-id :reader bid :initform (unique-bot-id))
+      ((bot-id :reader bot-id :initform (unique-bot-id))
        (status :reader status :initform "survived")
        (command-line :reader command-line :initarg :command-line :initform nil)
        (process :reader process :initarg :process :initform nil)

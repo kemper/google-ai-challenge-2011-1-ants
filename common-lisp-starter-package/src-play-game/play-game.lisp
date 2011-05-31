@@ -20,7 +20,6 @@
 ;;; Constants
 
 (defvar +land+ (make-instance 'land))
-(defvar +water+ (make-instance 'water))
 
 
 ;;; Functions
@@ -99,6 +98,7 @@
                               "Killing ants...~%")
                       (setf (aref (game-map *state*) srow-a scol-a) +land+
                             (aref (game-map *state*) srow-b scol-b) +land+
+                            ;; TODO use DELETE?
                             (orders *state*) (remove order-b (remove order-a (orders *state*))))))))
 
 
@@ -108,10 +108,12 @@
         for row = (getf order :src-row)
         for col = (getf order :src-col)
         do (when (/= bot-id (pid (aref (game-map *state*) row col)))
+             ;; TODO report row col dir
              (logmsg "Bot " bot-id " issued an order for a position it "
                      "doesn't occupy. Ignoring...~%")
              (logmsg "o: " order "~%")
              (logmsg "p: " (pid (aref (game-map *state*) row col)) "~%")
+             ;; TODO use DELETE?
              (setf (orders *state*) (remove order (orders *state*))))))
 
 
@@ -122,10 +124,13 @@
         for col = (getf order :src-col)
         for dir = (getf order :direction)
         do (when (water? row col dir)
+             ;; TODO report row col dir
              (logmsg "Bot " bot-id " ordered an ant into water. Ignoring...~%")
+             ;; TODO use DELETE?
              (setf (orders *state*) (remove order (orders *state*))))))
 
 
+;; TODO use (DEAD-ANT BOT) when that is functional
 (defun clear-dead-ants ()
   (loop for row from 0 below (rows *state*)
         do (loop for col from 0 below (cols *state*)
@@ -141,11 +146,19 @@
         ((equal direction "W") :west)))
 
 
+(defun distance2 (row1 col1 row2 col2)
+  (let* ((drow (abs (- row1 row2)))
+         (dcol (abs (- col1 col2)))
+         (minrow (min drow (- (rows *state*) drow)))
+         (mincol (min dcol (- (cols *state*) dcol))))
+    (+ (* minrow minrow) (* mincol mincol))))
+
+
 (defun do-turn (turn)
   (setf (orders *state*) nil)
   (loop for bot across (bots *state*)
         for command-line = (command-line bot)
-        for id = (bid bot)
+        for id = (bot-id bot)
         for proc = (process bot)
         for pin = (sb-ext:process-input proc)
         for pout = (sb-ext:process-output proc)
@@ -167,7 +180,11 @@
                                  (loop-finish))
                                (when (starts-with line "o ")
                                  (queue-ant-order id line))))))))
-  (move-ants))
+  (move-ants)
+  ;(battle-resolution)
+  ;(spawn-ants)
+  ;(spawn-food)
+  )
 
 
 (defun init-scores-for-new-turn ()
@@ -190,6 +207,8 @@
     (force-output (log-stream *state*))))
 
 
+;; If needed for performance CHECK-POSITIONS and CHECK-WATER could be moved
+;; into the loop.
 (defun move-ants ()
   (clear-dead-ants)
   (check-positions)
@@ -206,10 +225,7 @@
            (setf (slot-value ant 'row) dst-row
                  (slot-value ant 'col) dst-col
                  (aref (game-map *state*) dst-row dst-col) ant
-                 (aref (game-map *state*) src-row src-col) +land+))
-  (battle-resolution)
-  ;(spawn-ants)
-  )
+                 (aref (game-map *state*) src-row src-col) +land+)))
 
 
 (defun no-turn-time-left-p (turn-start-time)
@@ -270,7 +286,10 @@
         do (setf (aref map-array row col)
                  (case c
                    (#\. +land+)
-                   (#\% +water+)
+                   (#\% (make-instance 'water :row row :col col
+                          :seen-by (make-array (length (bots *state*))
+                                               :element-type 'boolean
+                                               :initial-element nil)))
                    (otherwise
                     (let* ((pid (char2pid c))
                            (ant (make-instance 'ant :initial-row row
@@ -286,8 +305,6 @@
            (log-new-turn-stats)
            (cond ((= turn 0) (send-initial-game-state))
                  ((> turn 0) (init-scores-for-new-turn)
-                             ;; should be in DO-TURN?
-                             ;(spawn-food)  ; TODO turn on eventually
                              (do-turn turn)
                              (update-immobile-ant-orders)))))
 
@@ -407,6 +424,7 @@
 
 
 ;; See: https://github.com/aichallenge/aichallenge/wiki/Ants-replay-format
+;; Perhaps I should have used a JSON lib :-|
 (defun save-replay (&optional (round 0))
   (with-open-file (f (mkstr round ".replay") :direction :output
                      :if-exists :supersede)
@@ -508,10 +526,37 @@
         do (setf (aref (scores bot) 0) 0)))
 
 
-(defun send-game-state (bot input turn)
-  (format input "turn ~D~%" turn)
-  (loop with id = (bid bot)
-        with vr = (floor (sqrt (view-radius2 *state*)))
+(defun send-ant (stream row col bot-id tile)
+  (format stream "~A ~D ~D ~D~%" (if (dead tile) "d" "a") row col
+          (cond ((= bot-id (pid tile)) 0)
+                ((< bot-id (pid tile)) (pid tile))
+                ((> bot-id (pid tile)) (+ (pid tile) 1)))))
+
+
+(defun send-food (stream row col)
+  (format stream "f ~D ~D~%" row col))
+
+
+(defun send-go (&optional (stream *standard-output*))
+  (format stream "~&go~%")
+  (force-output stream))
+
+
+(defun send-turn (stream turn)
+  (format stream "turn ~D~%" turn))
+
+
+(defun send-water (stream row col id tile)
+  (unless (elt (seen-by tile) id)
+    (setf (elt (seen-by tile) id) t)
+    (format stream "w ~D ~D~%" row col)))
+
+
+(defun send-game-state (bot stream turn)
+  (send-turn stream turn)
+  (loop with id = (bot-id bot)
+        with vr2 = (view-radius2 *state*)
+        with vr = (floor (sqrt vr2))  ; TODO put in *STATE* as well
         for ant in (ants bot)
         for arow = (row ant)
         for acol = (col ant)
@@ -520,39 +565,21 @@
                           for wrc = (wrapped-row-col roff coff)
                           for wrow = (elt wrc 0)
                           for wcol = (elt wrc 1)
-                          for dist = (distance arow acol wrow wcol)
-                          ;when (and (<= dist vr) (/= 0 dist))
-                          when (<= dist vr) do
-                            (let* ((tile (aref (game-map *state*)
-                                               wrow wcol))
+                          for dist2 = (distance2 arow acol wrow wcol)
+                          when (<= dist2 vr2) do
+                            (let* ((tile (aref (game-map *state*) wrow wcol))
                                    (type (type-of tile)))
-                              ;; this is within the "let*" above (outdented)
                               (case type
-                                (water (format input "w ~D ~D~%" wrow wcol))
-                                (food (format input "f ~D ~D~%" wrow wcol))
-                                (ant (if (dead tile)
-                                         (format input "d ~D ~D ~D~%" wrow wcol
-                                                 (cond ((= id (pid tile))
-                                                        0)
-                                                       ((< id (pid tile))
-                                                        (pid tile))
-                                                       ((> id (pid tile))
-                                                        (+ (pid tile) 1))))
-                                         (format input "a ~D ~D ~D~%" wrow wcol
-                                                 (cond ((= id (pid tile))
-                                                        0)
-                                                       ((< id (pid tile))
-                                                        (pid tile))
-                                                       ((> id (pid tile))
-                                                        (+ (pid tile) 1)))))))))))
-  (format input "go~%")
-  (force-output input))
+                                (water (send-water stream wrow wcol id tile))
+                                (food (send-food stream wrow wcol))
+                                (ant (send-ant stream wrow wcol id tile)))))))
+  (send-go stream))
 
 
 (defun send-initial-game-state ()
   (loop for bot across (bots *state*)
         for command-line = (command-line bot)
-        for id = (bid bot)
+        for id = (bot-id bot)
         for proc = (process bot)
         for pin = (sb-ext:process-input proc)
         for pout = (sb-ext:process-output proc)
@@ -634,7 +661,7 @@
                     append (loop for col from 0 below (cols *state*)
                                  for tile = (aref (game-map *state*) row col)
                                  when (typep tile 'land)
-                                   collect (list row col))
+                                   collect (vector row col))
                       into result
                     finally (return (loop repeat (n-players *state*)
                                           collect (random-elt result))))))
@@ -677,12 +704,12 @@
 
 
 (defun wrapped-row-col (row col)
-  (list (cond ((< row 0) (+ (rows *state*) row))  ; adding negative number
-              ((>= row (rows *state*)) (- row (rows *state*)))
-              (t row))
-        (cond ((< col 0) (+ (cols *state*) col))  ; adding negative number
-              ((>= col (cols *state*)) (- col (cols *state*)))
-              (t col))))
+  (vector (cond ((< row 0) (+ (rows *state*) row))  ; adding negative number
+                ((>= row (rows *state*)) (- row (rows *state*)))
+                (t row))
+          (cond ((< col 0) (+ (cols *state*) col))  ; adding negative number
+                ((>= col (cols *state*)) (- col (cols *state*)))
+                (t col))))
 
 
 ;;; Main Program

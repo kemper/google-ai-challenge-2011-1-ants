@@ -10,4 +10,4 @@
                              (:file "specials")
                              (:file "classes")
                              (:file "play-game"))))
-  :depends-on (:ants-common :com.dvlsoft.clon :split-sequence))
+  :depends-on (:ants-common :com.dvlsoft.clon :parse-number :split-sequence))

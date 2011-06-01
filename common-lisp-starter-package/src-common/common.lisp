@@ -24,7 +24,7 @@
 
 (defun errmsg (&rest args)
   (format (error-stream *state*) (apply #'mkstr args))
-  (force-output *error-output*))
+  (force-output (error-stream *state*)))
 
 
 (defun host2str (host)

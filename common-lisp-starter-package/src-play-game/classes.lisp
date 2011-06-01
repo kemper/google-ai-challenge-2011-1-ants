@@ -1,4 +1,8 @@
 ;;;; classes.lisp
+;;;;
+;;;; Almost all slots are initialized to NIL.  The actual
+;;;; default values are set in PROCESS-COMMAND-LINE-OPTIONS
+;;;; and defined in DEFSYNOPSIS.
 
 (in-package :play-game)
 
@@ -54,12 +58,12 @@
    (log-stream :reader log-stream :initform nil)  ; TODO? *debug-io*
    (turn :reader turn :initform nil)
    (turn-start-time :reader turn-start-time :initform nil)
-   (attack-radius2  :reader attack-radius2 :initform 4)
-   (load-time :reader load-time :initform 3000)
-   (spawn-radius2 :reader spawn-radius2 :initform 1)
-   (turn-time :reader turn-time :initform 1000)
-   (turns :reader turns :initform 200)
-   (view-radius2 :reader view-radius2 :initform 55)
+   (attack-radius2  :reader attack-radius2 :initform nil)
+   (load-time :reader load-time :initform nil)
+   (spawn-radius2 :reader spawn-radius2 :initform nil)
+   (turn-time :reader turn-time :initform nil)
+   (turns :reader turns :initform nil)
+   (view-radius2 :reader view-radius2 :initform nil)
    (rows :reader rows :initform nil)
    (cols :reader cols :initform nil)
    (game-map :reader game-map :initform nil)
@@ -72,6 +76,10 @@
 (defclass play-game-state (state)
   ((log-stream :reader log-stream :initform *debug-io*)
    (bots :reader bots :initform (make-array 0 :fill-pointer 0))
+   (end-wait :reader end-wait :initform nil)
+   (food-method :reader food-method :initform nil)
    (map-file :reader map-file :initform nil)
    (n-players :reader n-players :initarg :n-players :initform nil)
-   (orders :accessor orders :initarg :orders :initform nil)))
+   (orders :accessor orders :initarg :orders :initform nil)
+   (replay-dir :reader replay-dir :initform nil)
+   (rounds :reader rounds :initform nil)))

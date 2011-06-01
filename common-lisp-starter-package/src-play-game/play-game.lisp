@@ -130,7 +130,7 @@
              (setf (orders *state*) (remove order (orders *state*))))))
 
 
-;; TODO use (DEAD-ANT BOT) when that is functional
+;; TODO use (DEAD-ANTS BOT) when that is functional
 (defun clear-dead-ants ()
   (loop for row from 0 below (rows *state*)
         do (loop for col from 0 below (cols *state*)
@@ -183,8 +183,33 @@
   (move-ants)
   ;(battle-resolution)
   ;(spawn-ants)
-  ;(spawn-food)
-  )
+  (unless (equal :none (food-method *state*))
+    (spawn-food)))
+
+
+(defun getopt (name &optional (long nil))
+  "Wrapper for CLON:GETOPT. Returns option NAME. Set LONG to T if NAME is a
+  long name (ie. \"verbose\" instead of \"v\")."
+  (if long
+      (com.dvlsoft.clon:getopt :long-name name)
+      (com.dvlsoft.clon:getopt :short-name name)))
+
+
+(defun getopt-key (name &optional (long nil))
+  "Wrapper for CLON:GETOPT. Returns option NAME as a keyword. Set LONG to
+  T if NAME is a long name (ie. \"verbose\" instead of \"v\")."
+  (intern (string-upcase (if long
+                             (com.dvlsoft.clon:getopt :long-name name)
+                             (com.dvlsoft.clon:getopt :short-name name)))
+          :keyword))
+
+
+(defun getopt-nr (name &optional (long nil))
+  "Wrapper for CLON:GETOPT. Returns option NAME as an integer. Set LONG to
+  T if NAME is a long name (ie. \"verbose\" instead of \"v\")."
+  (parse-number (if long
+                    (com.dvlsoft.clon:getopt :long-name name)
+                    (com.dvlsoft.clon:getopt :short-name name))))
 
 
 (defun init-scores-for-new-turn ()
@@ -244,18 +269,17 @@
                    ((starts-with line "players ")
                     (setf (slot-value *state* 'n-players) (par-value line)))
                    ((and (starts-with line "m ") (null (cols *state*)))
-                    (logmsg "~&Map missing \"cols n\" line. Aborting...~%")
+                    (errmsg "~&Map missing \"cols n\" line. Aborting...~%")
                     (quit 1))
                    ((and (starts-with line "m ") (null (rows *state*)))
-                    (logmsg "~&Map missing \"rows n\" line. Aborting...~%")
+                    (errmsg "~&Map missing \"rows n\" line. Aborting...~%")
                     (quit 1))
                    ((and (starts-with line "m ") (null (n-players *state*)))
-                    (logmsg "~&Map missing \"players n\" line. Aborting...~%")
+                    (errmsg "~&Map missing \"players n\" line. Aborting...~%")
                     (quit 1))
                    ((and (starts-with line "m ")
                          (< (length (remainder)) (n-players *state*)))
-                    (logmsg "~&Map needs " (n-players *state*) " players but "
-                            ;"only " (length (bots *state*)) " were entered on "
+                    (errmsg "~&Map needs " (n-players *state*) " players but "
                             "only " (length (remainder)) " were entered on "
                             "the command-line. Aborting...~%")
                     (quit 1))
@@ -269,7 +293,7 @@
                     (parse-map-line (game-map *state*) line rows)
                     (incf rows)))
           finally (when (/= rows (rows *state*))
-                    (logmsg "~&Actual map rows (" rows ") not equal to "
+                    (errmsg "~&Actual map rows (" rows ") not equal to "
                             "specified number of rows (" (rows *state*)
                             "). Aborting...~%")
                     (quit 1)))))
@@ -277,7 +301,7 @@
 
 (defun parse-map-line (map-array string row)
   (when (/= (- (length string) 2) (cols *state*))
-    (logmsg "~&Actual map columns (" (- (length string) 2) ") for this line "
+    (errmsg "~&Actual map columns (" (- (length string) 2) ") for this line "
             "not equal to specified number of~%columns (" (cols *state*) ") "
             "for this map. Aborting...~%")
     (quit 1))
@@ -364,28 +388,26 @@
 
 
 (defun process-command-line-options ()
-  (cond ((or (getopt :short-name "?") (getopt :short-name "h")
+  (cond ((or (getopt "?") (getopt "h")
              (= 1 (length (cmdline))))
          (help)
          (quit))
         ;; use :SAVE-RUNTIME-OPTIONS to SAVE-LISP-AND-DIE if you want --version
-        ((getopt :long-name "release")
+        ((getopt "release" t)
          (format t "~&play-game (Ant Wars) version ~A~%" +version+)
          (quit)))
-  (do-cmdline-options (option name value source)
-    (setf source source)  ; to silence compilation warnings  TODO remove!
-    (cond ((or (equal name "m") (equal name "map_file"))
-           (setf (slot-value *state* 'map-file) value))
-          ((or (equal name "r") (equal name "rounds"))
-           (setf (slot-value *state* 'turns) (parse-integer value)))
-          ((or (equal name "t") (equal name "turns"))
-           (setf (slot-value *state* 'turns) (parse-integer value)))
-          ((or (equal name "v") (equal name "verbose"))
-           (setf *verbose* t))
-          ((equal name "loadtime")
-           (setf (slot-value *state* 'load-time) (parse-integer value)))
-          ((equal name "turntime")
-           (setf (slot-value *state* 'turn-time) (parse-integer value)))))
+  (setf *verbose*                            (getopt     "v")
+        (slot-value *state* 'food-method)    (getopt-key "f")
+        (slot-value *state* 'map-file)       (getopt     "m")
+        (slot-value *state* 'rounds)         (getopt-nr  "r")
+        (slot-value *state* 'turns)          (getopt-nr  "t")
+        (slot-value *state* 'attack-radius2) (getopt-nr  "attackradius2" t)
+        (slot-value *state* 'end-wait)       (getopt-nr  "end_wait" t)
+        (slot-value *state* 'load-time)      (getopt-nr  "loadtime" t)
+        (slot-value *state* 'replay-dir)     (getopt     "log_dir" t)
+        (slot-value *state* 'spawn-radius2)  (getopt-nr  "spawnradius2" t)
+        (slot-value *state* 'turn-time)      (getopt-nr  "turntime" t)
+        (slot-value *state* 'view-radius2)   (getopt-nr  "viewradius2" t))
   (unless (map-file *state*)
     (help)
     (quit)))
@@ -426,8 +448,8 @@
 ;; See: https://github.com/aichallenge/aichallenge/wiki/Ants-replay-format
 ;; Perhaps I should have used a JSON lib :-|
 (defun save-replay (&optional (round 0))
-  (with-open-file (f (mkstr round ".replay") :direction :output
-                     :if-exists :supersede)
+  (with-open-file (f (mkstr (replay-dir *state*) round ".replay")
+                   :direction :output :if-exists :supersede)
     (format f (mkstr "{~%"
                      "    \"challenge\": \"ants\",~%"
                      "    \"game_id\": 0,~%"
@@ -720,15 +742,9 @@
   (group (:header "Game options:")
     (path :short-name "m" :long-name "map_file" :argument-name "MAP"
           :type :file :description "Name of the map file. (required)")
-    (stropt :short-name "r" :long-name "rounds" :argument-name "ROUNDS"
-            :default-value "200"
-            :description "Number of rounds to play. (synonym for --turns)")
     (stropt :short-name "t" :long-name "turns" :argument-name "TURNS"
             :default-value "200"
             :description "Number of turns in the game.")
-    (path :short-name "o" :long-name "output_dir" :argument-name "OUTPUT_DIR"
-          :type :directory :default-value #p"replays/"
-          :description "Directory to dump replay files to. (defunct)")
     (flag :long-name "serial"
       :description "Run bots in serial, instead of parallel. (defunct)")
     (stropt :long-name "loadtime" :argument-name "LOADTIME"
@@ -737,15 +753,30 @@
     (stropt :long-name "turntime" :argument-name "TURNTIME"
             :default-value "1000"
             :description "Amount of time to give each bot, in milliseconds.")
-    (stropt :long-name "attack" :argument-name "ATTACK"
-            :description "Attack method to use for engine. (ignored)"))
+    (stropt :short-name "r" :long-name "rounds" :argument-name "ROUNDS"
+            :default-value "1"
+            :description "Number of rounds to play.")
+    (stropt :long-name "end_wait" :argument-name "END_WAIT"
+            :default-value "0"
+            :description "Seconds to wait at end for bots to process end.")
+    (stropt :short-name "f" :long-name "food" :argument-name "FOOD"
+            :default-value "random"
+            :description "Food spawning method. (none, random).")
+    (stropt :long-name "viewradius2" :argument-name "VIEWRADIUS2"
+            :default-value "55"
+            :description "Vision radius of ants squared.")
+    (stropt :long-name "spawnradius2" :argument-name "SPAWNRADIUS2"
+            :default-value "1"
+            :description "Spawn radius of ants squared.")
+    (stropt :long-name "attackradius2" :argument-name "ATTACKRADIUS2"
+            :default-value "4"
+            :description "Attack radius of ants squared.")
+    (path :short-name "l" :long-name "log_dir" :argument-name "LOG_DIR"
+          :type :directory :default-value #p"game_logs/"
+          :description "Directory to dump replay files to."))
   (group (:header "Debug options:")
     (flag :short-name "v" :long-name "verbose"
-      :description "Print out status as game goes.")
-    (flag :short-name "I" :long-name "log_input"
-      :description "Log input streams sent to bots. (defunct)")
-    (flag :short-name "O" :long-name "log_output"
-      :description "Log output streams from bots. (defunct)"))
+      :description "Print out status as game goes."))
   (group (:header "Immediate exit options:")
     (flag :short-name "?"
       :description "Print this help and exit.")
@@ -781,4 +812,5 @@
     (logmsg "status " (players-status-string) "~%")
     ;(debug-output)
     (scores-compatibility-hack)
-    (save-replay)))
+    (save-replay)
+    (sleep (end-wait *state*))))

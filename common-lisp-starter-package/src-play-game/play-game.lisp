@@ -187,27 +187,24 @@
     (spawn-food)))
 
 
-(defun getopt (name &optional (long nil))
-  "Wrapper for CLON:GETOPT. Returns option NAME. Set LONG to T if NAME is a
-  long name (ie. \"verbose\" instead of \"v\")."
-  (if long
+(defun getopt (name)
+  "Wrapper for CLON:GETOPT. Returns value of option NAME."
+  (if (> (length name) 1)
       (com.dvlsoft.clon:getopt :long-name name)
       (com.dvlsoft.clon:getopt :short-name name)))
 
 
-(defun getopt-key (name &optional (long nil))
-  "Wrapper for CLON:GETOPT. Returns option NAME as a keyword. Set LONG to
-  T if NAME is a long name (ie. \"verbose\" instead of \"v\")."
-  (intern (string-upcase (if long
+(defun getopt-key (name)
+  "Wrapper for CLON:GETOPT. Returns value of option NAME as a keyword."
+  (intern (string-upcase (if (> (length name) 1)
                              (com.dvlsoft.clon:getopt :long-name name)
                              (com.dvlsoft.clon:getopt :short-name name)))
           :keyword))
 
 
-(defun getopt-nr (name &optional (long nil))
-  "Wrapper for CLON:GETOPT. Returns option NAME as an integer. Set LONG to
-  T if NAME is a long name (ie. \"verbose\" instead of \"v\")."
-  (parse-number (if long
+(defun getopt-nr (name)
+  "Wrapper for CLON:GETOPT. Returns option NAME as an integer."
+  (parse-number (if (> (length name) 1)
                     (com.dvlsoft.clon:getopt :long-name name)
                     (com.dvlsoft.clon:getopt :short-name name))))
 
@@ -393,7 +390,7 @@
          (help)
          (quit))
         ;; use :SAVE-RUNTIME-OPTIONS to SAVE-LISP-AND-DIE if you want --version
-        ((getopt "release" t)
+        ((getopt "release")
          (format t "~&play-game (Ant Wars) version ~A~%" +version+)
          (quit)))
   (setf *verbose*                            (getopt     "v")
@@ -401,13 +398,13 @@
         (slot-value *state* 'map-file)       (getopt     "m")
         (slot-value *state* 'rounds)         (getopt-nr  "r")
         (slot-value *state* 'turns)          (getopt-nr  "t")
-        (slot-value *state* 'attack-radius2) (getopt-nr  "attackradius2" t)
-        (slot-value *state* 'end-wait)       (getopt-nr  "end_wait" t)
-        (slot-value *state* 'load-time)      (getopt-nr  "loadtime" t)
-        (slot-value *state* 'replay-dir)     (getopt     "log_dir" t)
-        (slot-value *state* 'spawn-radius2)  (getopt-nr  "spawnradius2" t)
-        (slot-value *state* 'turn-time)      (getopt-nr  "turntime" t)
-        (slot-value *state* 'view-radius2)   (getopt-nr  "viewradius2" t))
+        (slot-value *state* 'attack-radius2) (getopt-nr  "attackradius2")
+        (slot-value *state* 'end-wait)       (getopt-nr  "end_wait")
+        (slot-value *state* 'load-time)      (getopt-nr  "loadtime")
+        (slot-value *state* 'replay-dir)     (getopt     "log_dir")
+        (slot-value *state* 'spawn-radius2)  (getopt-nr  "spawnradius2")
+        (slot-value *state* 'turn-time)      (getopt-nr  "turntime")
+        (slot-value *state* 'view-radius2)   (getopt-nr  "viewradius2"))
   (unless (map-file *state*)
     (help)
     (quit)))
@@ -797,7 +794,7 @@
 (defun main ()
   (make-context)
   (let ((*state* (make-instance 'play-game-state :error-stream *debug-io*))
-        (*verbose* nil))
+        (*verbose* nil)) ; set in PROCESS-COMMAND-LINE-OPTIONS
     (process-command-line-options)
     (start-bots)
     (parse-map (map-file *state*))

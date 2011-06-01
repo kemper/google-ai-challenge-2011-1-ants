@@ -6,6 +6,7 @@
   :components ((:module src
                 :serial t
                 :components ((:file "package")
+                             (:file "classes")
                              (:file "misc")
                              (:file "game-state")
                              (:file "main"))))

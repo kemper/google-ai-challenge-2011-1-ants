@@ -21,7 +21,8 @@
 ;;; Main Program
 
 ;; This MAIN is used on the competition server.
-(defun main (&key (log nil) (state (make-instance 'state)) (verbose nil))
+(defun main (&key (log nil) (state (make-instance 'ants-bot-state))
+                  (verbose nil))
   "Main game loop: parses the (initial) game state and calls DO-TURN and
   FINISH-TURN."
   (let ((*state* state)
@@ -68,7 +69,8 @@
                  stream (socket-stream client))
            (format *debug-io* "Connected. Playing game...~%")
            (force-output)
-           (main :state (make-instance 'state :input stream :output stream)
+           (main :state (make-instance 'ants-bot-state :input stream
+                                       :output stream)
                  :log log :verbose verbose))
       (ignore-errors (socket-close client)
                      (socket-close socket))))

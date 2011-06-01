@@ -23,7 +23,4 @@
    (rows :reader rows :initform nil)
    (cols :reader cols :initform nil)
    (game-map :reader game-map :initform nil)
-   ;; TODO move enemy-ants and my-ants to a subclass in :ants-bot
-   (enemy-ants :reader enemy-ants :initform nil)
-   (my-ants :reader my-ants :initform nil)
    (food :reader food :initform nil)))

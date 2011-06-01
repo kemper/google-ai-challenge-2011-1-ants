@@ -3,6 +3,21 @@
 (in-package :ants-bot)
 
 
+;;; Functions
+
+;; This is the actual 'AI'.  Very simple currently: loops through each of your
+;; ants and issues an order to go either north, east, south or west if the tile
+;; in the direction is not a water tile.
+(defun do-turn ()
+  (loop for ant in (reverse (my-ants *state*))
+        for row = (elt ant 0)
+        for col = (elt ant 1)
+        do (cond ((not (water? row col :north)) (issue-order row col :north))
+                 ((not (water? row col :east))  (issue-order row col :east))
+                 ((not (water? row col :south)) (issue-order row col :south))
+                 ((not (water? row col :west))  (issue-order row col :west)))))
+
+
 ;;; Main Program
 
 ;; This MAIN is used on the competition server.
@@ -25,7 +40,7 @@
             when end-of-game-p do (loop-finish)
             do (logmsg "--- turn: " (turn *state*) " ---~%")
                (logmsg "~&[start] " (current-date-time-string) "~%")
-               (bot-think)  ; TODO rename to DO-TURN
+               (do-turn)
                (finish-turn)
                (logmsg "~&[  end] move took " (turn-time-used) " seconds ("
                        (turn-time-remaining) " left).~%")))))

@@ -8,6 +8,5 @@
                 :components ((:file "package")
                              (:file "misc")
                              (:file "game-state")
-                             (:file "bot-think")
-                             (:file "ants-bot"))))
+                             (:file "main"))))
   :depends-on (:ants-common :usocket))

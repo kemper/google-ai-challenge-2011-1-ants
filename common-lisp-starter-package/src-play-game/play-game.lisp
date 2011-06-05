@@ -393,13 +393,6 @@
           (orders *state*))))
 
 
-(defun random-elt (sequence)
-  "Returns a random element from SEQUENCE."
-  (let ((length (length sequence)))
-    (when (> length 0)
-      (elt sequence (random length)))))
-
-
 (defun run-program (program &optional (args nil))
   ;; If there's a space in PROGRAM assume it needs to be started with an
   ;; interpreter which needs a slightly different call to RUN-PROGRAM.

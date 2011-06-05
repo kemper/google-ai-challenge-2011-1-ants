@@ -107,6 +107,13 @@
   #-(and sbcl cmu ccl ecl clisp abcl) (cl-user::quit))
 
 
+(defun random-elt (sequence)
+  "Returns a random element from SEQUENCE."
+  (let ((length (length sequence)))
+    (when (> length 0)
+      (elt sequence (random length)))))
+
+
 (defun starts-with (sequence subsequence)
   (let ((sublen (length subsequence)))
     (when (and (> sublen 0)

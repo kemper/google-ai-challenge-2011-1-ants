@@ -5,7 +5,7 @@
 (defpackage :ants-common
   (:use :cl)
   (:export ;; specials
-           :*state* :*verbose*
+           :*state* :*verbose* :+land+
            ;; classes and accessors / readers
            :ant :food :land :state :water
            :attack-radius2 :col :cols :conversion-turn :dead :end-turn
@@ -19,4 +19,4 @@
            ;; functions
            :current-date-time-string :distance :errmsg :host2str :logmsg :mkstr
            :new-location :par-value :print-game-map :quit :starts-with
-           :wall-time :water?))
+           :wall-time :water? :wrapped-row-col))

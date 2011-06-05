@@ -1,16 +1,4 @@
 ;;;; game-state.lisp
-;;;;
-;;;; The map is represented as a 2 dimensional array of fixnums:
-;;;;
-;;;;       0  = land
-;;;;       1  = water
-;;;;       2  = food
-;;;;     100+ = live ant
-;;;;     200+ = dead ant
-;;;;
-;;;; This basically limits the number of players to 100 (unless
-;;;; MOST-POSITIVE-FIXNUM is lower than 300) before we get undefined
-;;;; behaviour.
 
 (in-package :ants-bot)
 
@@ -41,8 +29,8 @@
                  ((starts-with line "viewradius2 ")
                   (setf (slot-value *state* 'view-radius2) (par-value line)))))
   (setf (slot-value *state* 'game-map)
-        (make-array (list (rows *state*) (cols *state*)) :element-type 'fixnum
-                    :initial-element 0)))
+        (make-array (list (rows *state*) (cols *state*))
+                    :initial-element 'def456)))
 
 
 (defun parse-game-state ()
@@ -52,7 +40,7 @@
   (setf (slot-value *state* 'turn-start-time) (wall-time))
   (reset-some-state)
   (loop for line = (read-line (input *state*) nil)
-        until (> (length line) 0)
+        until (> (length line) 0)  ; TODO needs clarification
         finally (return (cond ((starts-with line "end")
                                (parse-turn)
                                t)
@@ -80,14 +68,16 @@
 
 
 (defun reset-game-map ()
-  "Sets all tiles on the map to land (0) if they're not already land or
-  water (1).  Modifies (GAME-MAP *STATE*)."
+  "Sets all tiles on the map to land if they're not already land or water.
+  Modifies (GAME-MAP *STATE*)."
   (loop with game-map = (game-map *state*)
         with dim = (array-dimensions game-map)
         for row from 0 below (first dim)
         do (loop for col from 0 below (second dim)
-                 when (> (aref game-map row col) 1)
-                   do (setf (aref game-map row col) 0))))
+                 for tile-type = (type-of (aref game-map row col))
+                 unless (or (equal tile-type 'land)
+                            (equal tile-type 'water))
+                 do (setf (aref game-map row col) +land+))))
 
 
 (defun reset-some-state ()
@@ -105,12 +95,17 @@
          (row (parse-integer (elt split 1)))
          (col (parse-integer (elt split 2)))
          (owner (parse-integer (elt split 3))))
+    ;; TODO push class to lists
     (if (= owner 0)
         (push (list row col) (slot-value *state* 'my-ants))
         (push (list row col owner) (slot-value *state* 'enemy-ants)))
-    (setf (aref (game-map *state*) row col) (+ owner 100))))
+    (setf (aref (game-map *state*) row col)
+          ;; TODO perhaps create ant-lite class?
+          (make-instance 'ant :row row :col col :pid owner))))
 
 
+;; TODO check if the ant's already at row,col and set it to dead if so
+;; TODO merge with set-ant
 (defun set-dead (string)
   "Parses the \"d row col owner\" STRING and sets the specific map tile to
   a dead ant of owner.  Modifies (GAME-MAP *STATE*)."
@@ -118,8 +113,9 @@
          (row (parse-integer (elt split 1)))
          (col (parse-integer (elt split 2)))
          (owner (parse-integer (elt split 3))))
-    (unless (= 2 (aref (game-map *state*) row col))
-      (setf (aref (game-map *state*) row col) (+ owner 200)))))
+    (unless (typep (aref (game-map *state*) row col) 'food)  ; TODO foodp
+      (setf (aref (game-map *state*) row col)
+            (make-instance 'ant :row row :col col :pid owner)))))
 
 
 (defun set-food (string)
@@ -128,8 +124,9 @@
   (let* ((split (split-state-string string))
          (row (parse-integer (elt split 1)))
          (col (parse-integer (elt split 2))))
-    (push (list col row) (slot-value *state* 'food))
-    (setf (aref (game-map *state*) row col) 2)))
+    (push (list col row) (slot-value *state* 'food))  ; TODO push class
+    (setf (aref (game-map *state*) row col)
+          (make-instance 'food :row row :col col :start-turn (turn *state*)))))
 
 
 (defun set-water (string)
@@ -138,7 +135,8 @@
   (let* ((split (split-state-string string))
          (row (parse-integer (elt split 1)))
          (col (parse-integer (elt split 2))))
-    (setf (aref (game-map *state*) row col) 1)))
+    (setf (aref (game-map *state*) row col)
+          (make-instance 'water :row row :col col))))
 
 
 (defun split-state-string (string)

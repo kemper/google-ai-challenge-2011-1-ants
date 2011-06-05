@@ -5,6 +5,7 @@
 
 ;;; Functions
 
+;; TODO put send-go in common and call that
 (defun finish-turn ()
   "Prints the \"finish turn\" string to standard output."
   (format (output *state*) "~&go~%")

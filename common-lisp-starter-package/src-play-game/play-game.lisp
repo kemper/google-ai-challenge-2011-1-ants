@@ -17,11 +17,6 @@
 (in-package :play-game)
 
 
-;;; Constants
-
-(defvar +land+ (make-instance 'land))
-
-
 ;;; Functions
 
 (defun ants-within-attack-range ()
@@ -359,31 +354,6 @@
                (princ sep s)))))
 
 
-(defun print-game-map (game-map &optional (stream *debug-io*))
-  (loop with dim = (array-dimensions game-map)
-        for col from 0 below (second dim)
-        initially (princ #\space stream)
-                  (princ #\space stream)
-        do (princ (mod col 10) stream)
-        finally (terpri stream))
-  (loop with dim = (array-dimensions game-map)
-        for row from 0 below (first dim)
-        do (princ (mod row 10) stream)
-           (princ #\space stream)
-           (loop for col from 0 below (second dim)
-                 for tile = (aref game-map row col)
-                 for type = (type-of tile)
-                 do (case type
-                      (land  (princ #\. stream))
-                      (water (princ #\% stream))
-                      (food  (princ #\* stream))
-                      (ant (if (dead tile)
-                               (princ (code-char (+ (pid tile) 65)) stream)
-                               (princ (code-char (+ (pid tile) 97)) stream)))
-                      (t (princ #\? stream))))
-           (terpri stream)))
-
-
 (defun process-command-line-options ()
   (cond ((or (getopt "?") (getopt "h")
              (= 1 (length (cmdline))))
@@ -715,20 +685,6 @@
 (defun wait-for-output (output turn-start-time)
   (loop until (or (listen output)
                   (no-turn-time-left-p turn-start-time))))
-
-
-(defun water? (row col direction)
-  (let ((nl (new-location row col direction)))
-    (typep (aref (game-map *state*) (elt nl 0) (elt nl 1)) 'water)))
-
-
-(defun wrapped-row-col (row col)
-  (vector (cond ((< row 0) (+ (rows *state*) row))  ; adding negative number
-                ((>= row (rows *state*)) (- row (rows *state*)))
-                (t row))
-          (cond ((< col 0) (+ (cols *state*) col))  ; adding negative number
-                ((>= col (cols *state*)) (- col (cols *state*)))
-                (t col))))
 
 
 ;;; Main Program

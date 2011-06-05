@@ -11,6 +11,7 @@
 
 
 (defclass land (tile) ())
+(defvar +land+ (make-instance 'land))
 
 
 (defclass food (tile)

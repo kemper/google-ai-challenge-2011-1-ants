@@ -7,3 +7,9 @@
 
 (defvar *state* nil)
 (defvar *verbose* nil)
+
+
+;;; Constants
+
+;; See classes.lisp
+;(defvar +land+ (make-instance 'land))

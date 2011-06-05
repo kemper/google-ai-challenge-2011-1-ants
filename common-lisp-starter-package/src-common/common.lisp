@@ -55,28 +55,14 @@
 (defun new-location (row col direction)
   "Returns '(NEW-ROW NEW-COL) for ROW,COL and DIRECTION for a grid that
   wraps around."
-  (if (not (member direction '(:north :east :south :west)))
-      (progn (logmsg "[new-location] Illegal direction: " direction "~%")
-             (list row col))
-      (let ((dst-row (cond ((equal direction :north)
-                            (if (<= row 0)
-                                (- (rows *state*) 1)
-                                (- row 1)))
-                           ((equal direction :south)
-                            (if (>= (+ row 1) (rows *state*))
-                                0
-                                (+ row 1)))
-                           (t row)))
-            (dst-col (cond ((equal direction :east)
-                            (if (>= (+ col 1) (cols *state*))
-                                0
-                                (+ col 1)))
-                           ((equal direction :west)
-                            (if (<= col 0)
-                                (- (cols *state*) 1)
-                                (- col 1)))
-                           (t col))))
-        (list dst-row dst-col))))
+  (let ((wrp (wrapped-row-col (cond ((equal direction :north) (- row 1))
+                                    ((equal direction :south) (+ row 1))
+                                    (t row))
+                              (cond ((equal direction :west) (- col 1))
+                                    ((equal direction :east) (+ col 1))
+                                    (t col)))))
+    ;; TODO should return a vector as well in the future
+    (list (elt wrp 0) (elt wrp 1))))
 
 
 (defun par-value (string)
@@ -96,13 +82,16 @@
         do (princ (mod row 10) stream)
            (princ #\space stream)
            (loop for col from 0 below (second dim)
-                 for val = (aref game-map row col)
-                 do (cond ((= val 0) (princ #\. stream))
-                          ((= val 1) (princ #\% stream))
-                          ((= val 2) (princ #\* stream))
-                          ((>= val 200) (princ (code-char (- val 135)) stream))
-                          ((>= val 100) (princ (code-char (- val 3)) stream))
-                          (t (princ #\? stream))))
+                 for tile = (aref game-map row col)
+                 for type = (type-of tile)
+                 do (case type
+                      (land  (princ #\. stream))
+                      (water (princ #\% stream))
+                      (food  (princ #\* stream))
+                      (ant (if (dead tile)
+                               (princ (code-char (+ (pid tile) 65)) stream)
+                               (princ (code-char (+ (pid tile) 97)) stream)))
+                      (t (princ #\? stream))))
            (terpri stream)))
 
 
@@ -138,4 +127,13 @@
   "Returns T if the tile in the DIRECTION of ROW,COL is water, otherwise
   returns NIL."
   (let ((nl (new-location row col direction)))
-    (= 1 (aref (game-map *state*) (elt nl 0) (elt nl 1)))))
+    (typep (aref (game-map *state*) (elt nl 0) (elt nl 1)) 'water)))
+
+
+(defun wrapped-row-col (row col)
+  (vector (cond ((< row 0) (+ (rows *state*) row))  ; adding negative number
+                ((>= row (rows *state*)) (- row (rows *state*)))
+                (t row))
+          (cond ((< col 0) (+ (cols *state*) col))  ; adding negative number
+                ((>= col (cols *state*)) (- col (cols *state*)))
+                (t col))))

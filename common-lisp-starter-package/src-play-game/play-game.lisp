@@ -19,60 +19,55 @@
 
 ;;; Functions
 
+;; all-alive-ants actually
+(defun all-ants ()
+  (loop for bot across (bots *state*) append (ants bot)))
+
+
 (defun ant-at (row col &optional (bot-id))
   (loop for ant in (if bot-id
                        (ants (aref (bots *state*) bot-id))
-                       (loop for bot across (bots *state*)
-                             append (ants bot)))
+                       (all-ants))
         when (and (= row (row ant))
                   (= col (col ant)))
           do (return-from ant-at ant)))
 
 
-(defun ants-within-attack-range ()
-  (loop with all = (loop for row from 0 below (rows *state*)
-                     append (loop for col from 0 below (cols *state*)
-                                  for tile = (aref (game-map *state*) row col)
-                                  when (and (typep tile 'ant)
-                                            (not (dead tile)))
-                                    collect tile))
-        for ant-a in all
-        for aid = (pid ant-a)
-        for arow = (row ant-a)
-        for acol = (col ant-a)
-        append (loop for ant-b in (remove ant-a all)
-                     for bid = (pid ant-b)
-                     for brow = (row ant-b)
-                     for bcol = (col ant-b)
-                     for dist = (distance arow acol brow bcol)
-                     when (and (/= aid bid)
-                               (<= dist (sqrt (attack-radius2 *state*))))
-                       collect (list :a-row arow :a-col acol
-                                     :b-row brow :b-col bcol
-                                     :distance dist))
-          into result
-        finally (return (sort result #'< :key (lambda (plist)
-                                                (getf plist :distance))))))
-
-
-;; TODO implement battle resolution from:
-;; http://github.com/aichallenge/aichallenge/wiki/Ants-Game-Specification
 (defun battle-resolution ()
-  ;(loop for awar = (ants-within-attack-range)
-  ;      for battle = (first awar)
-  ;      while battle
-  ;      for arow = (getf battle :a-row)
-  ;      for acol = (getf battle :a-col)
-  ;      for aid = (when battle (- (aref (game-map *state*) arow acol) 99))
-  ;      for brow = (getf battle :b-row)
-  ;      for bcol = (getf battle :b-col)
-  ;      for bid = (when battle (- (aref (game-map *state*) brow bcol) 99))
-  ;      do (logmsg "Ants " aid ":" arow ":" acol " and " bid ":" brow ":" bcol
-  ;                 " fought...~%")
-  ;         ;; TODO implement proper battle resolution
-  ;         (setf (aref (game-map *state*) arow acol) (+ aid 199)
-  ;               (aref (game-map *state*) brow bcol) (+ bid 199)))
-  )
+  ;; distribute damage
+  (loop with enemy-ants = nil
+        with ar2 = (attack-radius2 *state*)
+        with ar = (floor (sqrt ar2))
+        for ant in (all-ants)
+        for arow = (row ant)
+        for acol = (col ant)
+        do (loop for roff from (- arow ar) to (+ arow ar)
+                 do (loop for coff from (- acol ar) to (+ acol ar)
+                          for wrc = (wrapped-row-col roff coff)
+                          for wrow = (elt wrc 0)
+                          for wcol = (elt wrc 1)
+                          for dist2 = (distance2 arow acol wrow wcol)
+                          when (<= dist2 ar2) do
+                            (let ((tile (aref (game-map *state*) wrow wcol)))
+                              (when (and (antp tile) (alivep tile)
+                                         (/= (pid ant) (pid tile)))
+                                (push tile enemy-ants)))))
+           (let ((n-enemy-ants (length enemy-ants)))
+             (when (> n-enemy-ants 0)
+               (loop with dmg = (/ 1 n-enemy-ants)
+                     for enemy-ant in enemy-ants
+                     do (decf (hp enemy-ant) dmg))
+               (setf enemy-ants nil))))
+  ;; kill ants with hit-points <= 0
+  (loop for ant in (all-ants)
+        do (when (<= (hp ant) 0)
+             ;; TODO duplicated in other functions, needs its own function
+             (let ((bot (aref (bots *state*) (pid ant))))
+               (push ant (slot-value bot 'dead-ants))
+               (setf (aref (game-map *state*) (row ant) (col ant)) +land+
+                     (slot-value ant 'dead) t
+                     (slot-value ant 'end-turn) (turn *state*)
+                     (slot-value bot 'ants) (remove ant (ants bot)))))))
 
 
 (let ((mapping (make-array 0 :fill-pointer 0 :element-type 'character)))
@@ -166,6 +161,7 @@
 
 (defun do-turn (turn)
   (setf (orders *state*) nil)
+  (revitalize-ants)
   (loop for bot across (bots *state*)
         for command-line = (command-line bot)
         for id = (bot-id bot)
@@ -191,7 +187,7 @@
                                (when (starts-with line "o ")
                                  (queue-ant-order id line))))))))
   (move-ants)
-  ;(battle-resolution)
+  (battle-resolution)
   (spawn-ants)
   (unless (equal :none (food-method *state*))
     (spawn-food)))
@@ -261,7 +257,8 @@
              (setf (aref (game-map *state*) dst-row dst-col) ant))
            (when (dead ant)
              (let ((bot (aref (bots *state*) bot-id)))
-               (setf (slot-value bot 'ants) (remove ant (ants bot)))))))
+               (setf (slot-value bot 'ants) (remove ant (ants bot))))))
+  (update-immobile-ant-orders))
 
 
 (defun no-turn-time-left-p (turn-start-time)
@@ -340,8 +337,7 @@
            (log-new-turn-stats)
            (cond ((= turn 0) (send-initial-game-state))
                  ((> turn 0) (init-scores-for-new-turn)
-                             (do-turn turn)
-                             (update-immobile-ant-orders)))))
+                             (do-turn turn)))))
 
 
 (defun players-ant-count-string (&key (sep " "))
@@ -413,6 +409,10 @@
     (push (list :bot-id bot-id :src-row row :src-col col :dst-row (elt nl 0)
                 :dst-col (elt nl 1) :direction dir)
           (orders *state*))))
+
+
+(defun revitalize-ants ()
+  (loop for ant in (all-ants) do (setf (hp ant) 1)))
 
 
 (defun run-program (program &optional (args nil))

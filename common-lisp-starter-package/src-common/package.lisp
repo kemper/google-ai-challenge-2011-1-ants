@@ -9,9 +9,9 @@
            ;; classes and accessors / readers
            :ant :food :land :state :water
            :attack-radius2 :col :cols :conversion-turn :dead :end-turn
-           :enemy-ants :error-stream :food :game-map :initial-col :initial-row
-           :input :last1 :load-time :log-stream :my-ants :orders :output :pid
-           :row :rows :seen-by :spawn-radius2 :start-turn :turn
+           :enemy-ants :error-stream :food :game-map :hp :initial-col
+           :initial-row :input :last1 :load-time :log-stream :my-ants :orders
+           :output :pid :row :rows :seen-by :spawn-radius2 :start-turn :turn
            :turn-start-time :turn-time :turns :view-radius2
            ;; handlers
            :address-in-use :connection-lost :connection-refused :error-handler

@@ -322,6 +322,10 @@
                           :seen-by (make-array (length (bots *state*))
                                                :element-type 'boolean
                                                :initial-element nil)))
+                   (#\* (let ((food (make-instance 'food :row row :col col
+                                            :start-turn 0 :conversion-turn 0)))
+                          (push food (slot-value *state* 'food))
+                          food))
                    (otherwise
                     (let* ((pid (char2pid c))
                            (ant (make-instance 'ant :initial-row row
@@ -499,7 +503,8 @@
                               (pid ant)
                               (coerce (orders ant) 'string)
                               (if (or (< i (length (bots *state*)))
-                                      (< j (length (ants bot)))
+                                      (< j (+ (length (ants bot))
+                                              (length (dead-ants bot))))
                                       (> food-length 0))
                                    ","
                                    ""))))

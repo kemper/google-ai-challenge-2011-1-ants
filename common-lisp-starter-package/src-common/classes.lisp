@@ -15,15 +15,17 @@
 
 
 (defclass food (tile)
-  ((start-turn :reader start-turn :initarg :start-turn :initform 0)))
+  (;; needed in case the food is contested and destroyed
+   (conversion-turn :reader conversion-turn :initform 0
+                    :initarg :conversion-turn)
+   (start-turn :reader start-turn :initarg :start-turn :initform 0)))
 
 
 (defclass ant (food)
-  ((conversion-turn :reader conversion-turn :initform 0)
-   (initial-row :reader initial-row :initarg :initial-row)
+  ((initial-row :reader initial-row :initarg :initial-row)
    (initial-col :reader initial-col :initarg :initial-col)
    (end-turn :reader end-turn :initform 0)
-   (dead :reader dead :initform nil)
+   (dead :reader dead :initform nil)  ; TODO deadp
    (player-id :reader pid :initarg :pid)
    (orders :reader orders :initform (make-array 0 :fill-pointer 0))))
 

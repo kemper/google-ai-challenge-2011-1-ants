@@ -19,6 +19,16 @@
 
 ;;; Functions
 
+(defun ant-at (row col &optional (bot-id))
+  (loop for ant in (if bot-id
+                       (ants (aref (bots *state*) bot-id))
+                       (loop for bot across (bots *state*)
+                             append (ants bot)))
+        when (and (= row (row ant))
+                  (= col (col ant)))
+          do (return-from ant-at ant)))
+
+
 (defun ants-within-attack-range ()
   (loop with all = (loop for row from 0 below (rows *state*)
                      append (loop for col from 0 below (cols *state*)
@@ -72,15 +82,17 @@
     (position char mapping)))
 
 
-;; TODO fix inefficient algorithm
+;; This function only sets (DEAD ANT) to true.  They're actually removed in
+;; MOVE-ANTS.  (Why?  It's mostly a quick fix because the replay format was
+;; otherwise invalid because we removed the order.)
 (defun check-collisions ()
-  (loop for order-a in (copy-seq (orders *state*))
+  (loop for order-a in (orders *state*)
         for bot-a-id = (getf order-a :bot-id)
         for srow-a = (getf order-a :src-row)
         for scol-a = (getf order-a :src-col)
         for row-a = (getf order-a :dst-row)
         for col-a = (getf order-a :dst-col)
-        do (loop for order-b in (remove order-a (copy-seq (orders *state*)))
+        do (loop for order-b in (remove order-a (orders *state*))
                  for bot-b-id = (getf order-b :bot-id)
                  for srow-b = (getf order-b :src-row)
                  for scol-b = (getf order-b :src-col)
@@ -88,13 +100,16 @@
                  for col-b = (getf order-b :dst-col)
                  do (when (and (= row-a row-b)
                                (= col-a col-b))
-                      (logmsg "Ants " bot-a-id ":" srow-a ":" scol-a " and "
-                              bot-b-id ":" srow-b ":" scol-b " collided. "
-                              "Killing ants...~%")
-                      (setf (aref (game-map *state*) srow-a scol-a) +land+
-                            (aref (game-map *state*) srow-b scol-b) +land+
-                            ;; TODO use DELETE?
-                            (orders *state*) (remove order-b (remove order-a (orders *state*))))))))
+                      (let* ((bot-a (aref (bots *state*) bot-a-id))
+                             (bot-b (aref (bots *state*) bot-b-id))
+                             (ant-a (ant-at srow-a scol-a bot-a-id))
+                             (ant-b (ant-at srow-b scol-b bot-b-id)))
+                        (push ant-a (slot-value bot-a 'dead-ants))
+                        (push ant-b (slot-value bot-b 'dead-ants))
+                        (setf (slot-value ant-a 'dead) t
+                              (slot-value ant-b 'dead) t
+                              (slot-value ant-a 'end-turn) (turn *state*)
+                              (slot-value ant-b 'end-turn) (turn *state*)))))))
 
 
 (defun check-positions ()
@@ -177,7 +192,7 @@
                                  (queue-ant-order id line))))))))
   (move-ants)
   ;(battle-resolution)
-  ;(spawn-ants)
+  (spawn-ants)
   (unless (equal :none (food-method *state*))
     (spawn-food)))
 
@@ -241,8 +256,12 @@
         do (vector-push-extend (key2dir (getf order :direction)) (orders ant))
            (setf (slot-value ant 'row) dst-row
                  (slot-value ant 'col) dst-col
-                 (aref (game-map *state*) dst-row dst-col) ant
-                 (aref (game-map *state*) src-row src-col) +land+)))
+                 (aref (game-map *state*) src-row src-col) +land+)
+           (unless (dead ant)
+             (setf (aref (game-map *state*) dst-row dst-col) ant))
+           (when (dead ant)
+             (let ((bot (aref (bots *state*) bot-id)))
+               (setf (slot-value bot 'ants) (remove ant (ants bot)))))))
 
 
 (defun no-turn-time-left-p (turn-start-time)
@@ -310,7 +329,7 @@
                     (let* ((pid (char2pid c))
                            (ant (make-instance 'ant :initial-row row
                                   :initial-col col :row row :col col :pid pid
-                                  :start-turn (turn *state*))))
+                                  :start-turn 0)))
                       (push ant (slot-value (aref (bots *state*) pid) 'ants))
                       ant))))))
 
@@ -466,13 +485,14 @@
     (loop with food-length = (length (food *state*))
           for bot across (bots *state*)
           for i from 1
-          do (loop for ant in (append (ants bot) (dead-ants bot))
+          do (loop for ant in (append (reverse (ants bot))
+                                      (reverse (dead-ants bot)))
                    for j from 1
                    do (format f "            [ ~D, ~D, ~D, ~D, ~D, ~D, ~S ]~A~%"
                               (initial-row ant)
                               (initial-col ant)
-                              0 ;(start-turn ant)
-                              0
+                              (start-turn ant)
+                              (conversion-turn ant)
                               (if (dead ant)
                                   (end-turn ant)
                                   (+ (turns *state*) 1))
@@ -565,6 +585,7 @@
                           when (<= dist2 vr2) do
                             (let* ((tile (aref (game-map *state*) wrow wcol))
                                    (type (type-of tile)))
+                              ;; TODO use typecase
                               (case type
                                 (water (send-water stream wrow wcol id tile))
                                 (food (send-food stream wrow wcol))
@@ -601,58 +622,44 @@
                                 "~%"))))))))
 
 
-;; TODO very innefficient: fix
 (defun spawn-ants ()
-  (let ((ants (loop for row from 0 below (rows *state*)
-                    append (loop for col from 0 below (cols *state*)
-                                 for tile = (aref (game-map *state*) row col)
-                                 when (and (typep tile 'ant)
-                                           (not (dead tile)))
-                                   collect tile)))
-        (foods (loop for row from 0 below (rows *state*)
-                     append (loop for col from 0 below (cols *state*)
-                                  for tile = (aref (game-map *state*) row col)
-                                  when (typep tile 'food)
-                                    collect tile))))
-    (loop for food in foods
-          for frow = (row food)
-          for fcol = (col food)
-          for nearby-ant-ids = nil
-          do (loop for ant in ants
-                   for aid = (pid ant)
-                   for arow = (row ant)
-                   for acol = (col ant)
-                   do (when (<= (distance frow fcol arow acol)
-                                (sqrt (spawn-radius2 *state*)))
-                        (pushnew aid nearby-ant-ids))
-                   finally (cond ((= 1 (length nearby-ant-ids))
-                                  ;(logmsg "Spawning new ant: "
-                                  ;        (first nearby-ant-ids) "~%")
-                                  (incf (aref (scores (aref (bots *state*)
-                                                       (first nearby-ant-ids)))
-                                              (turn *state*)))
-                                  ;; TODO needs to spawn ant with correct
-                                  ;; start- and conversion-turns
-                                  (let ((ant (make-instance 'ant :row frow
-                                               :col fcol
-                                               :pid (first nearby-ant-ids)
-                                               :start-turn (turn *state*))))
-                                    (push ant
-                                          (slot-value (aref (bots *state*)
-                                                        (first nearby-ant-ids))
-                                                      'ants))
-                                    (setf (aref (game-map *state*) frow fcol)
-                                          ant)))
-                                 ((> (length nearby-ant-ids) 1)
-                                  ;(logmsg "Multiple contestants for food at "
-                                  ;        frow ":" fcol ". Removing...~%")
-                                  (setf (aref (game-map *state*) frow fcol)
-                                        +land+)))))))
+  (loop with sr2 = (spawn-radius2 *state*)
+        with sr = (floor (sqrt sr2))
+        for food in (copy-seq (food *state*))  ; we're modifying (food *state*)
+        for frow = (row food)
+        for fcol = (col food)
+        for ants = nil
+        do (loop for roff from (- frow sr) to (+ frow sr)
+                 do (loop for coff from (- fcol sr) to (+ fcol sr)
+                          for wrc = (wrapped-row-col roff coff)
+                          for wrow = (elt wrc 0)
+                          for wcol = (elt wrc 1)
+                          for dist2 = (distance2 frow fcol wrow wcol)
+                          when (<= dist2 sr2) do
+                            (let ((tile (aref (game-map *state*) wrow wcol)))
+                              (when (and (antp tile) (alivep tile))
+                                (push tile ants)))))
+           (cond ;; spawn an ant
+                 ((= (length ants) 1)
+                  (setf (slot-value *state* 'food)
+                        (remove food (food *state*)))
+                  (let* ((pid (pid (first ants)))
+                         (ant (make-instance 'ant :row frow :col fcol
+                               :start-turn (start-turn food)
+                               :conversion-turn (turn *state*)
+                               :initial-row frow :initial-col fcol :pid pid)))
+                    (setf (aref (game-map *state*) frow fcol) ant)
+                    (push ant (slot-value (aref (bots *state*) pid) 'ants))))
+                 ;; contested food, destroy it
+                 ((> (length ants) 1)
+                  (setf (slot-value *state* 'food)
+                        (remove food (food *state*)))
+                  (setf (aref (game-map *state*) frow fcol) +land+)))))
 
 
 ;; Very simple random food spawning.  Collects all land tile's coordinates
 ;; and randomly picks a random number of tiles between 0 and the number of
-;; players.
+;; players (-1?).
 (defun spawn-food ()
   (let ((food (loop for row from 0 below (rows *state*)
                     append (loop for col from 0 below (cols *state*)
@@ -687,8 +694,9 @@
   (loop for bot across (bots *state*)
         do (loop for ant in (ants bot)
                  for orders = (orders ant)
-                 when (< (length orders) (turn *state*))
-                 do (vector-push-extend #\- orders))))
+                 when (< (length orders)
+                         (- (turn *state*) (conversion-turn ant)))
+                   do (vector-push-extend #\- orders))))
 
 
 (defun wait-for-output (output turn-start-time)

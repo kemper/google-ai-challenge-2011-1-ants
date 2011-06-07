@@ -5,6 +5,14 @@
 
 ;;; Functions
 
+(defun alivep (tile)
+  (not (dead tile)))
+
+
+(defun antp (tile)
+  (typep tile 'ant))
+
+
 (defun current-date-time-string ()
   (multiple-value-bind (sec min hour day month year)
       (get-decoded-time)
@@ -27,11 +35,19 @@
   (force-output (error-stream *state*)))
 
 
+(defun foodp (tile)
+  (typep tile 'food))
+
+
 (defun host2str (host)
   (cond ((and (vectorp host) (= 4 (length host)))
          (format nil "~D.~D.~D.~D" (elt host 0) (elt host 1) (elt host 2)
                  (elt host 3)))
         (t host)))
+
+
+(defun landp (tile)
+  (typep tile 'land))
 
 
 (defun last1 (sequence)
@@ -135,6 +151,10 @@
   returns NIL."
   (let ((nl (new-location row col direction)))
     (typep (aref (game-map *state*) (elt nl 0) (elt nl 1)) 'water)))
+
+
+(defun waterp (tile)
+  (typep tile 'water))
 
 
 (defun wrapped-row-col (row col)

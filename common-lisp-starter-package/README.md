@@ -47,7 +47,7 @@ This rest of this file contains specific information about the Common
 Lisp (CL) starter package for the [Ant Wars Google AI Challenge](http://ai-contest.com/).
 
 It is assumed you are using [SBCL](http://www.sbcl.org/), since that
-is what the challenge server will be using as well.
+is what the challenge server will be using as well.  (Ubuntu Natty AMD64?)
 
 
 ## Status

@@ -15,12 +15,12 @@
 
 
 (defclass food (tile)
-  ((start-turn :reader start-turn :initarg :start-turn :initform 0)
-   (conversion-turn :reader conversion-turn :initform 0)))
+  ((start-turn :reader start-turn :initarg :start-turn :initform 0)))
 
 
 (defclass ant (food)
-  ((initial-row :reader initial-row :initarg :initial-row)
+  ((conversion-turn :reader conversion-turn :initform 0)
+   (initial-row :reader initial-row :initarg :initial-row)
    (initial-col :reader initial-col :initarg :initial-col)
    (end-turn :reader end-turn :initform 0)
    (dead :reader dead :initform nil)

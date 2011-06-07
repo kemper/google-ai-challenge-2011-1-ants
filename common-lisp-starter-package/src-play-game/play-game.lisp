@@ -355,8 +355,7 @@
 
 
 (defun process-command-line-options ()
-  (cond ((or (getopt "?") (getopt "h")
-             (= 1 (length (cmdline))))
+  (cond ((or (getopt "?") (getopt "h") (= 1 (length (cmdline))))
          (help)
          (quit))
         ;; use :SAVE-RUNTIME-OPTIONS to SAVE-LISP-AND-DIE if you want --version
@@ -375,6 +374,10 @@
         (slot-value *state* 'spawn-radius2)  (getopt-nr  "spawnradius2")
         (slot-value *state* 'turn-time)      (getopt-nr  "turntime")
         (slot-value *state* 'view-radius2)   (getopt-nr  "viewradius2"))
+  (unless (member (food-method *state*) '(:none :random))
+    (help)
+    (errmsg "~%Error: unknown food method: " (food-method *state*) "~%")
+    (quit))
   (unless (map-file *state*)
     (help)
     (quit)))
@@ -460,7 +463,8 @@
     (format f (mkstr "             ]~%"
                      "        },~%"
                      "        \"ants\": [~%"))
-    (loop for bot across (bots *state*)
+    (loop with food-length = (length (food *state*))
+          for bot across (bots *state*)
           for i from 1
           do (loop for ant in (append (ants bot) (dead-ants bot))
                    for j from 1
@@ -475,9 +479,19 @@
                               (pid ant)
                               (coerce (orders ant) 'string)
                               (if (or (< i (length (bots *state*)))
-                                      (< j (length (ants bot))))
+                                      (< j (length (ants bot)))
+                                      (> food-length 0))
                                    ","
                                    ""))))
+    (loop with food-length = (length (food *state*))
+          for food in (reverse (food *state*))
+          for i from 1
+          do (format f "            [ ~D, ~D, ~D, ~D ]~A~%"
+                     (row food)
+                     (col food)
+                     (start-turn food)
+                     (+ (turns *state*) 1)
+                     (if (< i food-length) "," "")))
     (format f (mkstr "        ],~%"
                      "        \"scores\": [~%"))
     (loop for bot across (bots *state*)
@@ -637,7 +651,8 @@
 
 
 ;; Very simple random food spawning.  Collects all land tile's coordinates
-;; and randomly picks a number of tiles equal to the number of players.
+;; and randomly picks a random number of tiles between 0 and the number of
+;; players.
 (defun spawn-food ()
   (let ((food (loop for row from 0 below (rows *state*)
                     append (loop for col from 0 below (cols *state*)
@@ -645,14 +660,15 @@
                                  when (typep tile 'land)
                                    collect (vector row col))
                       into result
-                    finally (return (loop repeat (n-players *state*)
+                    finally (return (loop repeat (random (n-players *state*))
                                           collect (random-elt result))))))
     (loop for rc in food
           for row = (elt rc 0)
           for col = (elt rc 1)
-          do (setf (aref (game-map *state*) row col)
-                   (make-instance 'food :row row :col col
-                                  :start-turn (turn *state*))))))
+          do (let ((food (make-instance 'food :row row :col col
+                                        :start-turn (turn *state*))))
+               (push food (slot-value *state* 'food))
+               (setf (aref (game-map *state*) row col) food)))))
 
 
 (defun start-bots ()
@@ -756,7 +772,6 @@
       )
     (logmsg "score " (players-score-string) "~%")
     (logmsg "status " (players-status-string) "~%")
-    ;(debug-output)
     (scores-compatibility-hack)
     (save-replay)
     (sleep (end-wait *state*))))

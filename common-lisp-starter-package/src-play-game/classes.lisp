@@ -3,6 +3,8 @@
 ;;;; Almost all slots are initialized to NIL.  The actual
 ;;;; default values are set in PROCESS-COMMAND-LINE-OPTIONS
 ;;;; and defined in DEFSYNOPSIS.
+;;;;
+;;;; TODO use structs, much faster
 
 (in-package :play-game)
 
@@ -23,6 +25,15 @@
                :initform (make-array 1 :element-type 'fixnum :fill-pointer 1
                                        ;:initial-element 0))))))
                                        :initial-element 1))))))
+
+
+(defclass order ()
+  ((bot-id :reader bot-id :initarg :bot-id)
+   (direction :reader direction :initarg :direction)
+   (src-row :reader src-row :initarg :src-row)
+   (src-col :reader src-col :initarg :src-col)
+   (dst-row :reader dst-row :initarg :dst-row)
+   (dst-col :reader dst-col :initarg :dst-col)))
 
 
 (defclass play-game-state (state)

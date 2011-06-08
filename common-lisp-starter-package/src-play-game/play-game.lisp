@@ -33,14 +33,6 @@
           do (return-from ant-at ant)))
 
 
-(defun tile-if-reachable (radius2 src-row src-col dst-row dst-col)
-  (let* ((wrc (wrapped-row-col dst-row dst-col))
-         (wrow (elt wrc 0))
-         (wcol (elt wrc 1)))
-    (when (<= (distance2 src-row src-col wrow wcol) radius2)
-      (aref (game-map *state*) wrow wcol))))
-
-
 (defun battle-resolution ()
   ;; distribute damage
   (loop with enemy-ants = nil
@@ -84,19 +76,21 @@
 ;; This function only sets (DEAD ANT) to true.  They're actually removed in
 ;; MOVE-ANTS.  (Why?  It's mostly a quick fix because the replay format was
 ;; otherwise invalid because we removed the order.)
+;;
+;; TODO check only squares near order-a
 (defun check-collisions ()
   (loop for order-a in (orders *state*)
-        for bot-a-id = (getf order-a :bot-id)
-        for srow-a = (getf order-a :src-row)
-        for scol-a = (getf order-a :src-col)
-        for row-a = (getf order-a :dst-row)
-        for col-a = (getf order-a :dst-col)
+        for bot-a-id = (bot-id order-a)
+        for srow-a = (src-row order-a)
+        for scol-a = (src-col order-a)
+        for row-a = (dst-row order-a)
+        for col-a = (dst-col order-a)
         do (loop for order-b in (remove order-a (orders *state*))
-                 for bot-b-id = (getf order-b :bot-id)
-                 for srow-b = (getf order-b :src-row)
-                 for scol-b = (getf order-b :src-col)
-                 for row-b = (getf order-b :dst-row)
-                 for col-b = (getf order-b :dst-col)
+                 for bot-b-id = (bot-id order-b)
+                 for srow-b = (src-row order-b)
+                 for scol-b = (src-col order-b)
+                 for row-b = (dst-row order-b)
+                 for col-b = (dst-col order-b)
                  do (when (and (= row-a row-b)
                                (= col-a col-b))
                       (let* ((bot-a (aref (bots *state*) bot-a-id))
@@ -113,9 +107,9 @@
 
 (defun check-positions ()
   (loop for order in (copy-seq (orders *state*))
-        for bot-id = (getf order :bot-id)
-        for row = (getf order :src-row)
-        for col = (getf order :src-col)
+        for bot-id = (bot-id order)
+        for row = (src-row order)
+        for col = (src-col order)
         do (when (/= bot-id (pid (aref (game-map *state*) row col)))
              ;; TODO report row col dir
              (logmsg "Bot " bot-id " issued an order for a position it "
@@ -128,10 +122,10 @@
 
 (defun check-water ()
   (loop for order in (copy-seq (orders *state*))
-        for bot-id = (getf order :bot-id)
-        for row = (getf order :src-row)
-        for col = (getf order :src-col)
-        for dir = (getf order :direction)
+        for bot-id = (bot-id order)
+        for row = (src-row order)
+        for col = (src-col order)
+        for dir = (direction order)
         do (when (water? row col dir)
              ;; TODO report row col dir
              (logmsg "Bot " bot-id " ordered an ant into water. Ignoring...~%")
@@ -240,6 +234,11 @@
     (force-output (log-stream *state*))))
 
 
+(defun make-order (bot-id direction src-row src-col dst-row dst-col)
+  (make-instance 'order :bot-id bot-id :direction direction :src-row src-row
+                 :src-col src-col :dst-row dst-row :dst-col dst-col))
+
+
 ;; If needed for performance CHECK-POSITIONS and CHECK-WATER could be moved
 ;; into the loop.
 (defun move-ants ()
@@ -248,13 +247,13 @@
   (check-water)
   (check-collisions)
   (loop for order in (orders *state*)
-        for bot-id = (getf order :bot-id)
-        for src-row = (getf order :src-row)
-        for src-col = (getf order :src-col)
-        for dst-row = (getf order :dst-row)
-        for dst-col = (getf order :dst-col)
+        for bot-id = (bot-id order)
+        for src-row = (src-row order)
+        for src-col = (src-col order)
+        for dst-row = (dst-row order)
+        for dst-col = (dst-col order)
         for ant = (aref (game-map *state*) src-row src-col)
-        do (vector-push-extend (key2dir (getf order :direction)) (orders ant))
+        do (vector-push-extend (key2dir (direction order)) (orders ant))
            (setf (slot-value ant 'row) dst-row
                  (slot-value ant 'col) dst-col
                  (aref (game-map *state*) src-row src-col) +land+)
@@ -415,9 +414,7 @@
          (dir (dir2key (elt split 3)))
          (nl (new-location row col dir)))
     ; TODO check for illegal moves here
-    ; TODO use vector / struct / class for performance?
-    (push (list :bot-id bot-id :src-row row :src-col col :dst-row (elt nl 0)
-                :dst-col (elt nl 1) :direction dir)
+    (push (make-order bot-id dir row col (elt nl 0) (elt nl 1))
           (orders *state*))))
 
 
@@ -709,6 +706,14 @@
         for proc = (run-program command-line)
         for bot = (make-instance 'bot :command-line command-line :process proc)
         do (vector-push-extend bot (bots *state*))))
+
+
+(defun tile-if-reachable (radius2 src-row src-col dst-row dst-col)
+  (let* ((wrc (wrapped-row-col dst-row dst-col))
+         (wrow (elt wrc 0))
+         (wcol (elt wrc 1)))
+    (when (<= (distance2 src-row src-col wrow wcol) radius2)
+      (aref (game-map *state*) wrow wcol))))
 
 
 (defun turn-time-left-p (turn-start-time)

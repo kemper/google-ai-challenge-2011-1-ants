@@ -67,8 +67,6 @@
 ;; This function only sets (DEAD ANT) to true.  They're actually removed in
 ;; MOVE-ANTS.  (Why?  It's mostly a quick fix because the replay format was
 ;; otherwise invalid because we removed the order.)
-;;
-;; TODO check only squares near order-a
 (defun check-collisions ()
   (loop for order-a in (orders *state*)
         for bot-a-id = (order-bot-id order-a)

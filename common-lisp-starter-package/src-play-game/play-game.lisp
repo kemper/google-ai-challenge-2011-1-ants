@@ -80,17 +80,17 @@
 ;; TODO check only squares near order-a
 (defun check-collisions ()
   (loop for order-a in (orders *state*)
-        for bot-a-id = (bot-id order-a)
-        for srow-a = (src-row order-a)
-        for scol-a = (src-col order-a)
-        for row-a = (dst-row order-a)
-        for col-a = (dst-col order-a)
+        for bot-a-id = (order-bot-id order-a)
+        for srow-a = (order-src-row order-a)
+        for scol-a = (order-src-col order-a)
+        for row-a = (order-dst-row order-a)
+        for col-a = (order-dst-col order-a)
         do (loop for order-b in (remove order-a (orders *state*))
-                 for bot-b-id = (bot-id order-b)
-                 for srow-b = (src-row order-b)
-                 for scol-b = (src-col order-b)
-                 for row-b = (dst-row order-b)
-                 for col-b = (dst-col order-b)
+                 for bot-b-id = (order-bot-id order-b)
+                 for srow-b = (order-src-row order-b)
+                 for scol-b = (order-src-col order-b)
+                 for row-b = (order-dst-row order-b)
+                 for col-b = (order-dst-col order-b)
                  do (when (and (= row-a row-b)
                                (= col-a col-b))
                       (let* ((bot-a (aref (bots *state*) bot-a-id))
@@ -107,9 +107,9 @@
 
 (defun check-positions ()
   (loop for order in (copy-seq (orders *state*))
-        for bot-id = (bot-id order)
-        for row = (src-row order)
-        for col = (src-col order)
+        for bot-id = (order-bot-id order)
+        for row = (order-src-row order)
+        for col = (order-src-col order)
         do (when (/= bot-id (pid (aref (game-map *state*) row col)))
              ;; TODO report row col dir
              (logmsg "Bot " bot-id " issued an order for a position it "
@@ -122,10 +122,10 @@
 
 (defun check-water ()
   (loop for order in (copy-seq (orders *state*))
-        for bot-id = (bot-id order)
-        for row = (src-row order)
-        for col = (src-col order)
-        for dir = (direction order)
+        for bot-id = (order-bot-id order)
+        for row = (order-src-row order)
+        for col = (order-src-col order)
+        for dir = (order-direction order)
         do (when (water? row col dir)
              ;; TODO report row col dir
              (logmsg "Bot " bot-id " ordered an ant into water. Ignoring...~%")
@@ -234,11 +234,6 @@
     (force-output (log-stream *state*))))
 
 
-(defun make-order (bot-id direction src-row src-col dst-row dst-col)
-  (make-instance 'order :bot-id bot-id :direction direction :src-row src-row
-                 :src-col src-col :dst-row dst-row :dst-col dst-col))
-
-
 ;; If needed for performance CHECK-POSITIONS and CHECK-WATER could be moved
 ;; into the loop.
 (defun move-ants ()
@@ -247,13 +242,13 @@
   (check-water)
   (check-collisions)
   (loop for order in (orders *state*)
-        for bot-id = (bot-id order)
-        for src-row = (src-row order)
-        for src-col = (src-col order)
-        for dst-row = (dst-row order)
-        for dst-col = (dst-col order)
+        for bot-id = (order-bot-id order)
+        for src-row = (order-src-row order)
+        for src-col = (order-src-col order)
+        for dst-row = (order-dst-row order)
+        for dst-col = (order-dst-col order)
         for ant = (aref (game-map *state*) src-row src-col)
-        do (vector-push-extend (key2dir (direction order)) (orders ant))
+        do (vector-push-extend (key2dir (order-direction order)) (orders ant))
            (setf (slot-value ant 'row) dst-row
                  (slot-value ant 'col) dst-col
                  (aref (game-map *state*) src-row src-col) +land+)
@@ -414,7 +409,8 @@
          (dir (dir2key (elt split 3)))
          (nl (new-location row col dir)))
     ; TODO check for illegal moves here
-    (push (make-order bot-id dir row col (elt nl 0) (elt nl 1))
+    (push (make-order :bot-id bot-id :direction dir :src-row row :src-col col
+                      :dst-row (elt nl 0) :dst-col (elt nl 1))
           (orders *state*))))
 
 

@@ -27,13 +27,13 @@
                                        :initial-element 1))))))
 
 
-(defclass order ()
-  ((bot-id :reader bot-id :initarg :bot-id)
-   (direction :reader direction :initarg :direction)
-   (src-row :reader src-row :initarg :src-row)
-   (src-col :reader src-col :initarg :src-col)
-   (dst-row :reader dst-row :initarg :dst-row)
-   (dst-col :reader dst-col :initarg :dst-col)))
+(defstruct order
+  (bot-id 0 :type fixnum)
+  (direction :none :type symbol)
+  (src-row 0 :type fixnum)
+  (src-col 0 :type fixnum)
+  (dst-row 0 :type fixnum)
+  (dst-col 0 :type fixnum))
 
 
 (defclass play-game-state (state)

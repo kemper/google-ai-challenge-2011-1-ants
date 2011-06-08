@@ -33,6 +33,14 @@
           do (return-from ant-at ant)))
 
 
+(defun tile-if-reachable (radius2 src-row src-col dst-row dst-col)
+  (let* ((wrc (wrapped-row-col dst-row dst-col))
+         (wrow (elt wrc 0))
+         (wcol (elt wrc 1)))
+    (when (<= (distance2 src-row src-col wrow wcol) radius2)
+      (aref (game-map *state*) wrow wcol))))
+
+
 (defun battle-resolution ()
   ;; distribute damage
   (loop with enemy-ants = nil
@@ -43,15 +51,11 @@
         for acol = (col ant)
         do (loop for roff from (- arow ar) to (+ arow ar)
                  do (loop for coff from (- acol ar) to (+ acol ar)
-                          for wrc = (wrapped-row-col roff coff)
-                          for wrow = (elt wrc 0)
-                          for wcol = (elt wrc 1)
-                          for dist2 = (distance2 arow acol wrow wcol)
-                          when (<= dist2 ar2) do
-                            (let ((tile (aref (game-map *state*) wrow wcol)))
-                              (when (and (antp tile) (alivep tile)
+                         for tile = (tile-if-reachable ar2 arow acol roff coff)
+                         when tile
+                           do (when (and (antp tile) (alivep tile)
                                          (/= (pid ant) (pid tile)))
-                                (push tile enemy-ants)))))
+                                (push tile enemy-ants))))
            (let ((n-enemy-ants (length enemy-ants)))
              (when (> n-enemy-ants 0)
                (loop with dmg = (/ 1 n-enemy-ants)
@@ -238,7 +242,7 @@
 ;; If needed for performance CHECK-POSITIONS and CHECK-WATER could be moved
 ;; into the loop.
 (defun move-ants ()
-  (clear-dead-ants)
+  (clear-dead-ants)  ; TODO needed?
   (check-positions)
   (check-water)
   (check-collisions)
@@ -590,7 +594,6 @@
                           when (<= dist2 vr2) do
                             (let* ((tile (aref (game-map *state*) wrow wcol))
                                    (type (type-of tile)))
-                              ;; TODO use typecase
                               (case type
                                 (water (send-water stream wrow wcol id tile))
                                 (food (send-food stream wrow wcol))
@@ -636,14 +639,10 @@
         for ants = nil
         do (loop for roff from (- frow sr) to (+ frow sr)
                  do (loop for coff from (- fcol sr) to (+ fcol sr)
-                          for wrc = (wrapped-row-col roff coff)
-                          for wrow = (elt wrc 0)
-                          for wcol = (elt wrc 1)
-                          for dist2 = (distance2 frow fcol wrow wcol)
-                          when (<= dist2 sr2) do
-                            (let ((tile (aref (game-map *state*) wrow wcol)))
-                              (when (and (antp tile) (alivep tile))
-                                (push tile ants)))))
+                         for tile = (tile-if-reachable sr2 frow fcol roff coff)
+                         when tile
+                           do (when (and (antp tile) (alivep tile))
+                                (push tile ants))))
            (cond ;; spawn an ant
                  ((= (length ants) 1)
                   (setf (slot-value *state* 'food)

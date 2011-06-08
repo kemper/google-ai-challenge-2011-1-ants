@@ -23,16 +23,7 @@
 (defun all-ants ()
   (loop for bot across (bots *state*) append (ants bot)))
 
-
-(defun ant-at (row col &optional (bot-id))
-  (loop for ant in (if bot-id
-                       (ants (aref (bots *state*) bot-id))
-                       (all-ants))
-        when (and (= row (row ant))
-                  (= col (col ant)))
-          do (return-from ant-at ant)))
-
-
+(defun oisoidosdi ())
 (defun battle-resolution ()
   ;; distribute damage
   (loop with enemy-ants = nil
@@ -95,8 +86,8 @@
                                (= col-a col-b))
                       (let* ((bot-a (aref (bots *state*) bot-a-id))
                              (bot-b (aref (bots *state*) bot-b-id))
-                             (ant-a (ant-at srow-a scol-a bot-a-id))
-                             (ant-b (ant-at srow-b scol-b bot-b-id)))
+                             (ant-a (aref (game-map *state*) srow-a scol-a))
+                             (ant-b (aref (game-map *state*) srow-b scol-b)))
                         (push ant-a (slot-value bot-a 'dead-ants))
                         (push ant-b (slot-value bot-b 'dead-ants))
                         (setf (slot-value ant-a 'dead) t

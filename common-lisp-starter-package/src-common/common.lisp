@@ -71,14 +71,12 @@
 (defun new-location (row col direction)
   "Returns '(NEW-ROW NEW-COL) for ROW,COL and DIRECTION for a grid that
   wraps around."
-  (let ((wrp (wrapped-row-col (cond ((equal direction :north) (- row 1))
-                                    ((equal direction :south) (+ row 1))
-                                    (t row))
-                              (cond ((equal direction :west) (- col 1))
-                                    ((equal direction :east) (+ col 1))
-                                    (t col)))))
-    ;; TODO should return a vector as well in the future
-    (list (elt wrp 0) (elt wrp 1))))
+  (wrapped-row-col (cond ((equal direction :north) (- row 1))
+                         ((equal direction :south) (+ row 1))
+                         (t row))
+                   (cond ((equal direction :west) (- col 1))
+                         ((equal direction :east) (+ col 1))
+                         (t col))))
 
 
 (defun par-value (string)

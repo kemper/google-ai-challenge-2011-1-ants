@@ -23,7 +23,7 @@
 (defun all-ants ()
   (loop for bot across (bots *state*) append (ants bot)))
 
-(defun oisoidosdi ())
+
 (defun battle-resolution ()
   ;; distribute damage
   (loop with enemy-ants = nil

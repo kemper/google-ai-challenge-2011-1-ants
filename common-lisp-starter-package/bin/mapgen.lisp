@@ -4,6 +4,7 @@
 
 ;;; Packages
 
+(require :asdf)
 (setf asdf:*central-registry* '("/usr/local/pub/ekwis/software/black-tie/"))
 (asdf:oos 'asdf:load-op :black-tie)
 (use-package :black-tie)

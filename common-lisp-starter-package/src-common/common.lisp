@@ -161,6 +161,9 @@
 
 
 (defun wrapped-row-col (row col)
+  (declare (inline + - < >= cols rows vector)
+           (optimize (speed 3))
+           (type fixnum row col))
   (vector (cond ((< row 0) (+ (rows *state*) row))  ; adding negative number
                 ((>= row (rows *state*)) (- row (rows *state*)))
                 (t row))

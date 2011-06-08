@@ -139,7 +139,6 @@
              (setf (orders *state*) (remove order (orders *state*))))))
 
 
-;; TODO use (DEAD-ANTS BOT) when that is functional
 (defun clear-dead-ants ()
   (loop for row from 0 below (rows *state*)
         do (loop for col from 0 below (cols *state*)
@@ -156,6 +155,9 @@
 
 
 (defun distance2 (row1 col1 row2 col2)
+  (declare (inline * + - abs cols min rows vector)
+           (optimize (speed 3))
+           (type fixnum row1 col1 row2 col2))
   (let* ((drow (abs (- row1 row2)))
          (dcol (abs (- col1 col2)))
          (minrow (min drow (- (rows *state*) drow)))
@@ -178,8 +180,7 @@
            ;; TODO don't do this when bot has stopped running
            (let ((turn-start (wall-time)))
              (wait-for-output pout turn-start)
-             (loop ;while (wait-for-output pout start)  ; no return values
-                   with end-loop = nil
+             (loop with end-loop = nil
                    until end-loop
                    do (cond ((no-turn-time-left-p turn-start)
                              (logmsg id ":" command-line " timed out.~%")
@@ -414,6 +415,7 @@
          (dir (dir2key (elt split 3)))
          (nl (new-location row col dir)))
     ; TODO check for illegal moves here
+    ; TODO use vector / struct / class for performance?
     (push (list :bot-id bot-id :src-row row :src-col col :dst-row (elt nl 0)
                 :dst-col (elt nl 1) :direction dir)
           (orders *state*))))
@@ -552,14 +554,29 @@
 
 
 (defun send-ant (stream row col bot-id tile)
-  (format stream "~A ~D ~D ~D~%" (if (dead tile) "d" "a") row col
-          (cond ((= bot-id (pid tile)) 0)
-                ((< bot-id (pid tile)) (pid tile))
-                ((> bot-id (pid tile)) (+ (pid tile) 1)))))
+  ;(format stream "~A ~D ~D ~D~%" (if (dead tile) "d" "a") row col
+  ;        (cond ((= bot-id (pid tile)) 0)
+  ;              ((< bot-id (pid tile)) (pid tile))
+  ;              ((> bot-id (pid tile)) (+ (pid tile) 1)))))
+  (write-string (if (dead tile) "d " "a ") stream)
+  (princ row stream)
+  (write-string " " stream)
+  (princ col stream)
+  (write-string " " stream)
+  (princ (cond ((= bot-id (pid tile)) 0)
+               ((< bot-id (pid tile)) (pid tile))
+               ((> bot-id (pid tile)) (+ (pid tile) 1)))
+         stream)
+  (terpri stream))
 
 
 (defun send-food (stream row col)
-  (format stream "f ~D ~D~%" row col))
+  ;(format stream "f ~D ~D~%" row col))
+  (write-string "f " stream)
+  (princ row stream)
+  (write-string " " stream)
+  (princ col stream)
+  (terpri stream))
 
 
 (defun send-go (&optional (stream *standard-output*))
@@ -574,14 +591,19 @@
 (defun send-water (stream row col id tile)
   (unless (elt (seen-by tile) id)
     (setf (elt (seen-by tile) id) t)
-    (format stream "w ~D ~D~%" row col)))
+    ;(format stream "w ~D ~D~%" row col)))
+    (write-string "w " stream)
+    (princ row stream)
+    (write-string " " stream)
+    (princ col stream)
+    (terpri stream)))
 
 
 (defun send-game-state (bot stream turn)
   (send-turn stream turn)
   (loop with id = (bot-id bot)
         with vr2 = (view-radius2 *state*)
-        with vr = (floor (sqrt vr2))  ; TODO put in *STATE* as well
+        with vr = (floor (sqrt vr2))
         for ant in (ants bot)
         for arow = (row ant)
         for acol = (col ant)

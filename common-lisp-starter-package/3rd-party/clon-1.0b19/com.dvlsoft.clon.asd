@@ -155,7 +155,8 @@ The most important features of Clon are:
   :author "Didier Verna <didier@lrde.epita.fr>"
   :maintainer "Didier Verna <didier@lrde.epita.fr>"
   :license "BSD style"
-  :version #.(version :long)
+  ;:version #.(version :long)
+  :version "1.0.19"
   :depends-on (#+sbcl             :sb-posix
 	       #+(and clisp cffi) :cffi)
   :components ((:file "package")

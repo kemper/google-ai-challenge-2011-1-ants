@@ -4,7 +4,7 @@
 ;;;; default values are set in PROCESS-COMMAND-LINE-OPTIONS
 ;;;; and defined in DEFSYNOPSIS.
 ;;;;
-;;;; TODO use structs, much faster
+;;;; TODO use structs: much faster
 
 (in-package :play-game)
 
@@ -18,8 +18,8 @@
        (status :accessor status :initform "survived")
        (command-line :reader command-line :initarg :command-line :initform nil)
        (process :reader process :initarg :process :initform nil)
+       (thread-status :accessor thread-status :initform :wait)
        (orders :accessor orders :initform nil)
-       (ready :accessor ready :initform nil)
        (ants :reader ants :initform nil)
        (dead-ants :reader dead-ants :initform nil)
        ; TODO add removed-food

@@ -170,16 +170,17 @@
   (declare (ignore turn))
   (init-scores-for-new-turn)
   (setf (orders *state*) nil)
-  (loop for bot across (bots *state*) do (setf (ready bot) nil))
   (revitalize-ants)
+  (loop for bot across (bots *state*) do (setf (thread-status bot) :new-turn))
   (loop with bots-ready = 0
         until (= bots-ready (n-players *state*))
         do (sleep 0.001)
            (loop with n-ready = 0
                  for bot across (bots *state*)
-                 do (when (ready bot)
+                 do (when (equal (thread-status bot) :ready)
                       (incf n-ready))
                  finally (setf bots-ready n-ready)))
+  (loop for bot across (bots *state*) do (setf (thread-status bot) :wait))
   (setf (orders *state*) (loop for bot across (bots *state*)
                                append (orders bot)))
   (move-ants)
@@ -263,14 +264,14 @@
   (sb-thread:make-thread
    (lambda ()
      (loop while t
-           do (wait-for-new-turn)
-              (let ((bot (aref (bots *state*) bot-id)))
+           do (let ((bot (aref (bots *state*) bot-id)))
+                (wait-for-new-turn bot)
                 (send-game-state bot)
                 (loop until (listen (sb-ext:process-output (process bot)))
                       do (sleep 0.001))
                 (setf (orders bot) nil)
                 (receive-bot-orders bot)
-                (setf (ready bot) t))))
+                (setf (thread-status bot) :ready))))
    :name (mkstr "bot-io-thread-" bot-id)))
 
 
@@ -781,10 +782,8 @@
           do (vector-push-extend #\- orders)))
 
 
-(defun wait-for-new-turn ()
-  (logmsg "[WFNT] (turn *state*) => " (turn *state*))
-  (loop with current-turn = (turn *state*)
-        until (> (turn *state*) current-turn)
+(defun wait-for-new-turn (bot)
+  (loop until (equal :new-turn (thread-status bot))
         do (sleep 0.001)))
 
 
@@ -856,23 +855,15 @@
 
 (defun main ()
   (make-context)
-  (let (;(*state* (make-instance 'play-game-state :error-stream *debug-io*))
-        ;(*verbose* nil) ; set in PROCESS-COMMAND-LINE-OPTIONS
-        )
-    ;; for threads
-    (setf *state* (make-instance 'play-game-state :error-stream *debug-io*))
-    (setf *verbose* nil)
-    (process-command-line-options)
-    (start-bots)
-    (parse-map (map-file *state*))
-    (logmsg "running for " (turns *state*) " turns~%")
-    (handler-bind (#+sbcl (sb-sys:interactive-interrupt #'user-interrupt))
-                   ;(error #'error-handler))
-      ;(sb-sprof:with-profiling (:loop nil :report :flat)
-        (play-game)
-      ;  )
-      )
-    (logmsg "score " (players-score-string) "~%")
-    (logmsg "status " (players-status-string) "~%")
-    (save-replay)
-    (sleep (end-wait *state*))))
+  (setf *state* (make-instance 'play-game-state :error-stream *debug-io*))
+  (process-command-line-options)
+  (start-bots)
+  (parse-map (map-file *state*))
+  (logmsg "running for " (turns *state*) " turns~%")
+  (handler-bind (#+sbcl (sb-sys:interactive-interrupt #'user-interrupt))
+                 ;(error #'error-handler))
+    (play-game))
+  (logmsg "score " (players-score-string) "~%")
+  (logmsg "status " (players-status-string) "~%")
+  (save-replay)
+  (sleep (end-wait *state*)))

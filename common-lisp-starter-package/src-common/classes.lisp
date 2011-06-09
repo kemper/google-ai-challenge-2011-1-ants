@@ -39,7 +39,7 @@
   ((rows :reader rows :initform nil)
    (cols :reader cols :initform nil)
    (game-map :reader game-map :initform nil)
-   (turn :reader turn :initform nil)
+   (turn :reader turn :initform 0)
    (turns :reader turns :initform nil)
    (turn-start-time :reader turn-start-time :initform nil)
    (turn-time :reader turn-time :initform nil)

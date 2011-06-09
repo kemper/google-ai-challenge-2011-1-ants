@@ -23,8 +23,7 @@
        ; TODO add removed-food
        (scores :reader scores
                :initform (make-array 1 :element-type 'fixnum :fill-pointer 1
-                                       ;:initial-element 0))))))
-                                       :initial-element 1))))))
+                                       :initial-element 0))))))
 
 
 (defstruct order

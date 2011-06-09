@@ -537,13 +537,6 @@
     (format f (mkstr "}~%"))))
 
 
-;; A hack to make to scores compatible with playgame.py.  (This is mainly
-;; for debugging, running diffs and unit tests.)
-(defun scores-compatibility-hack ()
-  (loop for bot across (bots *state*)
-        do (setf (aref (scores bot) 0) 0)))
-
-
 (defun send-ant (stream row col bot-id tile)
   ;(format stream "~A ~D ~D ~D~%" (if (dead tile) "d" "a") row col
   ;        (cond ((= bot-id (pid tile)) 0)
@@ -726,7 +719,8 @@
 
 (defun wait-for-output (output turn-start-time)
   (loop until (or (listen output)
-                  (no-turn-time-left-p turn-start-time))))
+                  (no-turn-time-left-p turn-start-time))
+        do (sleep 0.001)))
 
 
 ;;; Main Program
@@ -805,6 +799,5 @@
       )
     (logmsg "score " (players-score-string) "~%")
     (logmsg "status " (players-status-string) "~%")
-    (scores-compatibility-hack)
     (save-replay)
     (sleep (end-wait *state*))))

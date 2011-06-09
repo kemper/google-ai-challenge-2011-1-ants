@@ -18,6 +18,8 @@
        (status :accessor status :initform "survived")
        (command-line :reader command-line :initarg :command-line :initform nil)
        (process :reader process :initarg :process :initform nil)
+       (orders :accessor orders :initform nil)
+       (ready :accessor ready :initform nil)
        (ants :reader ants :initform nil)
        (dead-ants :reader dead-ants :initform nil)
        ; TODO add removed-food

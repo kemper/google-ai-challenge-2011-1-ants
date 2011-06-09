@@ -167,34 +167,21 @@
 
 
 (defun do-turn (turn)
+  (declare (ignore turn))
   (init-scores-for-new-turn)
   (setf (orders *state*) nil)
+  (loop for bot across (bots *state*) do (setf (ready bot) nil))
   (revitalize-ants)
-  ;; TODO move into its own function
-  (loop for bot across (bots *state*)
-        for command-line = (command-line bot)
-        for id = (bot-id bot)
-        for proc = (process bot)
-        for pin = (sb-ext:process-input proc)
-        for pout = (sb-ext:process-output proc)
-        do (if (equal :running (sb-ext:process-status proc))
-               (when (equal "survived" (status bot))  ; TODO survivedp?
-                 (send-game-state bot pin turn))
-               (logmsg id ":" command-line " has stopped running...~%"))
-           (when (equal "survived" (status bot))
-             (let ((turn-start (wall-time)))
-               (wait-for-output pout turn-start)
-               (loop with end-loop = nil
-                     until end-loop
-                     do (cond ((no-turn-time-left-p turn-start)
-                               (logmsg id ":" command-line " timed out.~%")
-                               (setf end-loop t))
-                              ((listen pout)
-                               (let ((line (read-line pout nil)))
-                                 (when (starts-with line "go")
-                                   (loop-finish))
-                                 (when (starts-with line "o ")
-                                   (queue-ant-order id line)))))))))
+  (loop with bots-ready = 0
+        until (= bots-ready (n-players *state*))
+        do (sleep 0.001)
+           (loop with n-ready = 0
+                 for bot across (bots *state*)
+                 do (when (ready bot)
+                      (incf n-ready))
+                 finally (setf bots-ready n-ready)))
+  (setf (orders *state*) (loop for bot across (bots *state*)
+                               append (orders bot)))
   (move-ants)
   (battle-resolution)
   (spawn-ants)
@@ -206,6 +193,23 @@
              (logmsg "turn " (turn *state*) " bot " (bot-id bot)
                      " eliminated~%")
              (setf (status bot) "eliminated"))))
+
+
+(defun receive-bot-orders (bot)
+  (loop with go-received = nil
+        until go-received
+        for line = (read-line (sb-ext:process-output (process bot)) nil)
+        do (cond ((starts-with line "go") (setf go-received t))
+                 ((starts-with line "o ")
+                  (let* ((split (split-sequence #\space (string-upcase line)))
+                         (row (parse-integer (elt split 1)))
+                         (col (parse-integer (elt split 2)))
+                         (dir (dir2key (elt split 3)))
+                         (nl (new-location row col dir)))
+                    (push (make-order :bot-id (bot-id bot) :direction dir
+                                      :src-row row :src-col col
+                                      :dst-row (elt nl 0) :dst-col (elt nl 1))
+                          (orders bot)))))))
 
 
 (defun getopt (name)
@@ -252,6 +256,22 @@
     (format (log-stream *state*) "turn ~4D stats: ant_count: [~A]~%"
             (turn *state*) (players-ant-count-string :sep ", "))
     (force-output (log-stream *state*))))
+
+
+(defun make-io-thread (bot-id)
+  (logmsg "Making IO thread for bot " bot-id "~%")
+  (sb-thread:make-thread
+   (lambda ()
+     (loop while t
+           do (wait-for-new-turn)
+              (let ((bot (aref (bots *state*) bot-id)))
+                (send-game-state bot)
+                (loop until (listen (sb-ext:process-output (process bot)))
+                      do (sleep 0.001))
+                (setf (orders bot) nil)
+                (receive-bot-orders bot)
+                (setf (ready bot) t))))
+   :name (mkstr "bot-io-thread-" bot-id)))
 
 
 ;; If needed for performance CHECK-POSITIONS and CHECK-WATER could be moved
@@ -624,28 +644,30 @@
     (terpri stream)))
 
 
-(defun send-game-state (bot stream turn)
-  (send-turn stream turn)
-  (loop with id = (bot-id bot)
-        with vr2 = (view-radius2 *state*)
-        with vr = (floor (sqrt vr2))
-        for ant in (ants bot)
-        for arow = (row ant)
-        for acol = (col ant)
-        do (loop for roff from (- arow vr) to (+ arow vr)
-                 do (loop for coff from (- acol vr) to (+ acol vr)
-                          for wrc = (wrapped-row-col roff coff)
-                          for wrow = (elt wrc 0)
-                          for wcol = (elt wrc 1)
-                          for dist2 = (distance2 arow acol wrow wcol)
-                          when (<= dist2 vr2) do
-                            (let* ((tile (aref (game-map *state*) wrow wcol))
-                                   (type (type-of tile)))
-                              (case type
-                                (water (send-water stream wrow wcol id tile))
-                                (food (send-food stream wrow wcol))
-                                (ant (send-ant stream wrow wcol id tile)))))))
-  (send-go stream))
+(defun send-game-state (bot)
+  (let ((stream (sb-ext:process-input (process bot)))
+        (turn (turn *state*)))
+    (send-turn stream turn)
+    (loop with id = (bot-id bot)
+          with vr2 = (view-radius2 *state*)
+          with vr = (floor (sqrt vr2))
+          for ant in (ants bot)
+          for arow = (row ant)
+          for acol = (col ant)
+          do (loop for roff from (- arow vr) to (+ arow vr)
+                   do (loop for coff from (- acol vr) to (+ acol vr)
+                            for wrc = (wrapped-row-col roff coff)
+                            for wrow = (elt wrc 0)
+                            for wcol = (elt wrc 1)
+                            for dist2 = (distance2 arow acol wrow wcol)
+                            when (<= dist2 vr2) do
+                               (let* ((tile (aref (game-map *state*) wrow wcol))
+                                      (type (type-of tile)))
+                                 (case type
+                                   (water (send-water stream wrow wcol id tile))
+                                   (food (send-food stream wrow wcol))
+                                   (ant (send-ant stream wrow wcol id tile)))))))
+    (send-go stream)))
 
 
 (defun send-initial-game-state ()
@@ -733,7 +755,8 @@
   (loop for command-line in (remainder)
         for proc = (run-program command-line)
         for bot = (make-instance 'bot :command-line command-line :process proc)
-        do (vector-push-extend bot (bots *state*))))
+        do (vector-push-extend bot (bots *state*))
+           (make-io-thread (bot-id bot))))
 
 
 (defun tile-if-reachable (radius2 src-row src-col dst-row dst-col)
@@ -758,8 +781,15 @@
           do (vector-push-extend #\- orders)))
 
 
-(defun wait-for-output (output turn-start-time)
-  (loop until (or (listen output)
+(defun wait-for-new-turn ()
+  (logmsg "[WFNT] (turn *state*) => " (turn *state*))
+  (loop with current-turn = (turn *state*)
+        until (> (turn *state*) current-turn)
+        do (sleep 0.001)))
+
+
+(defun wait-for-output (stream turn-start-time)
+  (loop until (or (listen stream)
                   (no-turn-time-left-p turn-start-time))
         do (sleep 0.001)))
 
@@ -826,8 +856,12 @@
 
 (defun main ()
   (make-context)
-  (let ((*state* (make-instance 'play-game-state :error-stream *debug-io*))
-        (*verbose* nil)) ; set in PROCESS-COMMAND-LINE-OPTIONS
+  (let (;(*state* (make-instance 'play-game-state :error-stream *debug-io*))
+        ;(*verbose* nil) ; set in PROCESS-COMMAND-LINE-OPTIONS
+        )
+    ;; for threads
+    (setf *state* (make-instance 'play-game-state :error-stream *debug-io*))
+    (setf *verbose* nil)
     (process-command-line-options)
     (start-bots)
     (parse-map (map-file *state*))

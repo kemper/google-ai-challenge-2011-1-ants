@@ -155,14 +155,15 @@
 
 
 (defun distance2 (row1 col1 row2 col2)
-  (declare (inline * + - abs cols min rows vector)
+  (declare (inline * + - abs cols logand min rows vector)
            (optimize (speed 3))
            (type fixnum row1 col1 row2 col2))
   (let* ((drow (abs (- row1 row2)))
          (dcol (abs (- col1 col2)))
-         (minrow (min drow (- (rows *state*) drow)))
-         (mincol (min dcol (- (cols *state*) dcol))))
-    (+ (* minrow minrow) (* mincol mincol))))
+         (minrow (min drow (- (the fixnum (rows *state*)) drow)))
+         (mincol (min dcol (- (the fixnum (cols *state*)) dcol))))
+    (declare (type fixnum minrow mincol))
+    (logand most-positive-fixnum (+ (* minrow minrow) (* mincol mincol)))))
 
 
 (defun do-turn (turn)

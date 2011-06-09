@@ -165,9 +165,11 @@
   (declare (inline + - < >= cols rows vector)
            (optimize (speed 3))
            (type fixnum row col))
-  (vector (cond ((< row 0) (+ (rows *state*) row))  ; adding negative number
-                ((>= row (rows *state*)) (- row (rows *state*)))
-                (t row))
-          (cond ((< col 0) (+ (cols *state*) col))  ; adding negative number
-                ((>= col (cols *state*)) (- col (cols *state*)))
-                (t col))))
+  (let ((rs (the fixnum (rows *state*)))
+        (cs (the fixnum (cols *state*))))
+    (vector (cond ((< row 0) (+ rs row))  ; adding negative number
+                  ((>= row rs) (- row rs))
+                  (t row))
+            (cond ((< col 0) (+ cs col))  ; adding negative number
+                  ((>= col cs) (- col cs))
+                  (t col)))))

@@ -55,6 +55,9 @@
     (when (> length 0)
       (elt sequence (- length 1)))))
 
+(defsetf last1 (sequence) (value)
+  `(setf (elt ,sequence (- (length ,sequence) 1)) ,value))
+
 
 (defun logmsg (&rest args)
   (when *verbose*

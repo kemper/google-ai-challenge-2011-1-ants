@@ -22,7 +22,7 @@
        (dead-ants :reader dead-ants :initform nil)
        ; TODO add removed-food
        (scores :reader scores
-               :initform (make-array 1 :element-type 'fixnum :fill-pointer 1
+               :initform (make-array 1 :element-type 'float :fill-pointer 1
                                        :initial-element 0))))))
 
 
@@ -38,6 +38,7 @@
 (defclass play-game-state (state)
   ((orders :accessor orders :initarg :orders :initform nil)
    (bots :reader bots :initform (make-array 0 :fill-pointer 0))
+   (food :accessor food :initform nil)
    (n-players :reader n-players :initarg :n-players :initform nil)
    (map-file :reader map-file :initform nil)
    (rounds :reader rounds :initform nil)

@@ -19,11 +19,20 @@
 
 ;;; Functions
 
-;; all-alive-ants actually
+(defun adjust-score (bot delta)
+  ;(incf (last1 (scores bot)) delta))  ; (defsetf last1... doesn't work?
+  (incf (elt (scores bot) (- (length (scores bot)) 1)) delta))
+
+
 (defun all-ants ()
   (loop for bot across (bots *state*) append (ants bot)))
 
 
+(defun ant-owner (ant)
+  (aref (bots *state*) (pid ant)))
+
+
+;; TODO move the two loops into seperate functions
 (defun battle-resolution ()
   ;; distribute damage
   (loop with enemy-ants = nil
@@ -32,6 +41,7 @@
         for ant in (all-ants)
         for arow = (row ant)
         for acol = (col ant)
+        ;; TODO use NEARBY-ANTS (or make WITH-NEARBY-ANTS?)
         do (loop for roff from (- arow ar) to (+ arow ar)
                  do (loop for coff from (- acol ar) to (+ acol ar)
                          for tile = (tile-if-reachable ar2 arow acol roff coff)
@@ -48,6 +58,13 @@
   ;; kill ants with hit-points <= 0
   (loop for ant in (all-ants)
         do (when (<= (hp ant) 0)
+             (let ((enemies (nearby-ants (row ant) (col ant)
+                                         (attack-radius2 *state*) (pid ant))))
+               (when enemies
+                 (loop with score = (/ 1 (length enemies))
+                       for enemy in enemies
+                       for bot = (ant-owner enemy)
+                       do (adjust-score bot score))))
              ;; TODO duplicated in other functions, needs its own function
              (let ((bot (aref (bots *state*) (pid ant))))
                (push ant (slot-value bot 'dead-ants))
@@ -216,7 +233,10 @@
   (loop for bot across (bots *state*)
         do (when (equal "survived" (status bot))
              (vector-push-extend (aref (scores bot) (- (turn *state*) 1))
-                                 (scores bot)))))
+                                 (scores bot))
+             ;; haven't been able to deduce the initial scores from playgame.py
+             (when (= 1 (turn *state*))
+               (adjust-score bot (length (ants bot)))))))
 
 
 (defun key2dir (key)
@@ -255,8 +275,21 @@
              (setf (aref (game-map *state*) dst-row dst-col) ant))
            (when (dead ant)
              (let ((bot (aref (bots *state*) bot-id)))
-               (setf (slot-value bot 'ants) (remove ant (ants bot))))))
+               (setf (slot-value bot 'ants) (remove ant (ants bot)))
+               ; TODO scoring for collided ants
+               )))
   (update-immobile-ant-orders))
+
+
+(defun nearby-ants (row col max-dist2 &optional (exclude -1))
+  (loop with dist = (floor (sqrt max-dist2))
+        for roff from (- row dist) to (+ row dist)
+        append (loop for coff from (- col dist) to (+ col dist)
+                     for tile = (tile-if-reachable max-dist2 row col roff coff)
+                     when (and (antp tile)
+                               (and (/= row 0) (/= col 0))
+                               (/= exclude (pid tile)))
+                       collect tile)))
 
 
 (defun no-turn-time-left-p (turn-start-time)
@@ -444,9 +477,14 @@
                (princ ", " f)))
     (format f (mkstr "],~%"
                      "    \"rank\": ["))
-    (loop for i from 0 below (n-players *state*)
-          do (princ "0" f)
-             (when (< i (- (n-players *state*) 1))
+    (loop with ranking = (loop for bot across (bots *state*)
+                               collect (last1 (scores bot)) into scores
+                               finally (return (sort (remove-duplicates scores)
+                                                     #'>)))
+          for bot across (bots *state*)
+          for i from 1
+          do (princ (position (last1 (scores bot)) ranking) f)
+             (when (< i (n-players *state*))
                (princ ", " f)))
     (format f (mkstr "],~%"
                      "    \"replayformat\": \"json\",~%"
@@ -651,19 +689,19 @@
                                 (push tile ants))))
            (cond ;; spawn an ant
                  ((= (length ants) 1)
-                  (setf (slot-value *state* 'food)
-                        (remove food (food *state*)))
+                  (setf (food *state*) (remove food (food *state*)))
                   (let* ((pid (pid (first ants)))
+                         (bot (aref (bots *state*) pid))
                          (ant (make-instance 'ant :row frow :col fcol
                                :start-turn (start-turn food)
                                :conversion-turn (turn *state*)
                                :initial-row frow :initial-col fcol :pid pid)))
                     (setf (aref (game-map *state*) frow fcol) ant)
-                    (push ant (slot-value (aref (bots *state*) pid) 'ants))))
+                    (push ant (slot-value bot 'ants))
+                    (adjust-score bot 1)))
                  ;; contested food, destroy it
                  ((> (length ants) 1)
-                  (setf (slot-value *state* 'food)
-                        (remove food (food *state*)))
+                  (setf (food *state*) (remove food (food *state*)))
                   (setf (aref (game-map *state*) frow fcol) +land+)))))
 
 
@@ -708,13 +746,13 @@
       (/ (turn-time *state*) 1000)))
 
 
+;; TODO scoring for ants that died this turn
 (defun update-immobile-ant-orders ()
-  (loop for bot across (bots *state*)
-        do (loop for ant in (ants bot)
-                 for orders = (orders ant)
-                 when (< (length orders)
-                         (- (turn *state*) (conversion-turn ant)))
-                   do (vector-push-extend #\- orders))))
+  (loop for ant in (all-ants)
+        for orders = (orders ant)
+        when (< (length orders)
+                (- (turn *state*) (conversion-turn ant)))
+          do (vector-push-extend #\- orders)))
 
 
 (defun wait-for-output (output turn-start-time)

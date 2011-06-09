@@ -63,6 +63,25 @@ Run `bin/run-ants-bot.sbcl` and paste the sample input from the [Ants Game Speci
 There are also a few initial unit tests which can be run by issuing
 `bin/run-tests.sh`.
 
+### Submission Errors
+
+If SBCL does any output on standard error (stderr / \*error-output*)
+it will count as a compilation error to the server.  So even innocuous
+compiler notes or warnings will cause a compilation error.
+
+If you're running into this, redirect \*error-output* to
+\*standard-output* like so: `(setf *error-output* *standard-output*)`
+at the top of MyBot.lisp.
+
+**However**, this will also hide genuine compilation errors that would
+otherwise be shown on your profile page!  So if your bot still fails
+compiling on the server, your best best is resubmitting with the
+redirection disabled.
+
+In the near future the proper incantation to disable warnings and
+notes on stderr will hopefully be added.
+
+
 ### Tools
 
 *point out [tools](http://aichallengebeta.hypertriangle.com/using_the_tools.php)*

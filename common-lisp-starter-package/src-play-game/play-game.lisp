@@ -149,8 +149,10 @@
 
 
 (defun do-turn (turn)
+  (init-scores-for-new-turn)
   (setf (orders *state*) nil)
   (revitalize-ants)
+  ;; TODO move into its own function
   (loop for bot across (bots *state*)
         for command-line = (command-line bot)
         for id = (bot-id bot)
@@ -158,27 +160,34 @@
         for pin = (sb-ext:process-input proc)
         for pout = (sb-ext:process-output proc)
         do (if (equal :running (sb-ext:process-status proc))
-               (send-game-state bot pin turn)
+               (when (equal "survived" (status bot))  ; TODO survivedp?
+                 (send-game-state bot pin turn))
                (logmsg id ":" command-line " has stopped running...~%"))
-           ;; TODO don't do this when bot has stopped running
-           (let ((turn-start (wall-time)))
-             (wait-for-output pout turn-start)
-             (loop with end-loop = nil
-                   until end-loop
-                   do (cond ((no-turn-time-left-p turn-start)
-                             (logmsg id ":" command-line " timed out.~%")
-                             (setf end-loop t))
-                            ((listen pout)
-                             (let ((line (read-line pout nil)))
-                               (when (starts-with line "go")
-                                 (loop-finish))
-                               (when (starts-with line "o ")
-                                 (queue-ant-order id line))))))))
+           (when (equal "survived" (status bot))
+             (let ((turn-start (wall-time)))
+               (wait-for-output pout turn-start)
+               (loop with end-loop = nil
+                     until end-loop
+                     do (cond ((no-turn-time-left-p turn-start)
+                               (logmsg id ":" command-line " timed out.~%")
+                               (setf end-loop t))
+                              ((listen pout)
+                               (let ((line (read-line pout nil)))
+                                 (when (starts-with line "go")
+                                   (loop-finish))
+                                 (when (starts-with line "o ")
+                                   (queue-ant-order id line)))))))))
   (move-ants)
   (battle-resolution)
   (spawn-ants)
   (unless (equal :none (food-method *state*))
-    (spawn-food)))
+    (spawn-food))
+  (loop for bot across (bots *state*)
+        do (when (and (equal "survived" (status bot))
+                      (= 0 (length (ants bot))))
+             (logmsg "turn " (turn *state*) " bot " (bot-id bot)
+                     " eliminated~%")
+             (setf (status bot) "eliminated"))))
 
 
 (defun getopt (name)
@@ -205,8 +214,9 @@
 
 (defun init-scores-for-new-turn ()
   (loop for bot across (bots *state*)
-        for prev-turn-score = (aref (scores bot) (- (turn *state*) 1))
-        do (vector-push-extend prev-turn-score (scores bot))))
+        do (when (equal "survived" (status bot))
+             (vector-push-extend (aref (scores bot) (- (turn *state*) 1))
+                                 (scores bot)))))
 
 
 (defun key2dir (key)
@@ -328,8 +338,7 @@
         do (setf (slot-value *state* 'turn) turn)
            (log-new-turn-stats)
            (cond ((= turn 0) (send-initial-game-state))
-                 ((> turn 0) (init-scores-for-new-turn)
-                             (do-turn turn)))))
+                 ((> turn 0) (do-turn turn)))))
 
 
 (defun players-ant-count-string (&key (sep " "))
@@ -622,16 +631,16 @@
                          (spawn-radius2 *state*))
                  (force-output pin))
                (logmsg id ":" command-line " has stopped running...~%"))
-           ;; TODO don't do this when bot has stopped running
-           (let ((turn-start (wall-time)))
-             (wait-for-output pout turn-start)
-             (cond ((no-turn-time-left-p turn-start)
-                    (logmsg id ":" command-line " timed out.~%"))
-                   ((listen pout)
-                    (let ((line (read-line pout nil)))
-                      (unless (starts-with line "go")
-                        (logmsg id ":" command-line " sent junk: " line
-                                "~%"))))))))
+           (when (equal :running (sb-ext:process-status proc))
+             (let ((turn-start (wall-time)))
+               (wait-for-output pout turn-start)
+               (cond ((no-turn-time-left-p turn-start)
+                      (logmsg id ":" command-line " timed out.~%"))
+                     ((listen pout)
+                      (let ((line (read-line pout nil)))
+                        (unless (starts-with line "go")
+                          (logmsg id ":" command-line " sent junk: " line
+                                "~%")))))))))
 
 
 (defun spawn-ants ()

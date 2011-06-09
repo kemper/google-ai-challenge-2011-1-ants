@@ -15,7 +15,7 @@
   (flet ((unique-bot-id () (incf counter)))
     (defclass bot ()
       ((bot-id :reader bot-id :initform (unique-bot-id))
-       (status :reader status :initform "survived")
+       (status :accessor status :initform "survived")
        (command-line :reader command-line :initarg :command-line :initform nil)
        (process :reader process :initarg :process :initform nil)
        (ants :reader ants :initform nil)

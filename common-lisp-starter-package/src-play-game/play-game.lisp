@@ -174,7 +174,7 @@
   (loop for bot across (bots *state*) do (setf (thread-status bot) :new-turn))
   (loop with bots-ready = 0
         until (= bots-ready (n-players *state*))
-        do (sleep 0.001)
+        do (sleep +sleep-time+)
            (loop with n-ready = 0
                  for bot across (bots *state*)
                  do (when (equal (thread-status bot) :ready)
@@ -191,8 +191,9 @@
   (loop for bot across (bots *state*)
         do (when (and (equal "survived" (status bot))
                       (= 0 (length (ants bot))))
-             (logmsg "turn " (turn *state*) " bot " (bot-id bot)
-                     " eliminated~%")
+             (format (log-stream *state*) "turn ~4D bot ~D eliminated~%"
+                     (turn *state*) (bot-id bot))
+             (force-output (log-stream *state*))
              (setf (status bot) "eliminated"))))
 
 
@@ -260,7 +261,6 @@
 
 
 (defun make-io-thread (bot-id)
-  (logmsg "Making IO thread for bot " bot-id "~%")
   (sb-thread:make-thread
    (lambda ()
      (loop while t
@@ -268,7 +268,7 @@
                 (wait-for-new-turn bot)
                 (send-game-state bot)
                 (loop until (listen (sb-ext:process-output (process bot)))
-                      do (sleep 0.001))
+                      do (sleep +sleep-time+))
                 (setf (orders bot) nil)
                 (receive-bot-orders bot)
                 (setf (thread-status bot) :ready))))
@@ -784,13 +784,13 @@
 
 (defun wait-for-new-turn (bot)
   (loop until (equal :new-turn (thread-status bot))
-        do (sleep 0.001)))
+        do (sleep +sleep-time+)))
 
 
 (defun wait-for-output (stream turn-start-time)
   (loop until (or (listen stream)
                   (no-turn-time-left-p turn-start-time))
-        do (sleep 0.001)))
+        do (sleep +sleep-time+)))
 
 
 ;;; Main Program

@@ -44,7 +44,7 @@
    (turn-start-time :reader turn-start-time :initform nil)
    (turn-time :reader turn-time :initform nil)
    (load-time :reader load-time :initform nil)
-   (food :reader food :initform nil)
+   (food :accessor food :initform nil)
    (attack-radius2  :reader attack-radius2 :initform nil)
    (spawn-radius2 :reader spawn-radius2 :initform nil)
    (view-radius2 :reader view-radius2 :initform nil)
@@ -61,3 +61,7 @@
   (format stream "<A ~D:~D,~D>" (pid obj) (row obj) (col obj)))
   ;(print-unreadable-object (obj stream :type t)
   ;  (format stream "fitness=~A n-nodes=~A" (fitness obj) (n-nodes obj))))
+
+
+(defmethod print-object ((obj food) stream)
+  (format stream "<F ~D,~D>" (row obj) (col obj)))

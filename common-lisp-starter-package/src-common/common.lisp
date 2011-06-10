@@ -23,11 +23,16 @@
 (defun distance (row1 col1 row2 col2)
   "Returns the shortest distance between ROW1,COL1 and ROW2,COL2 for a grid
   that wraps around."
+  (declare (inline * + - abs cols logand min rows sqrt vector)
+           (optimize (speed 3))
+           (type fixnum row1 col1 row2 col2))
   (let* ((drow (abs (- row1 row2)))
          (dcol (abs (- col1 col2)))
-         (minrow (min drow (- (rows *state*) drow)))
-         (mincol (min dcol (- (cols *state*) dcol))))
-    (sqrt (+ (* minrow minrow) (* mincol mincol)))))
+         (minrow (min drow (- (the fixnum (rows *state*)) drow)))
+         (mincol (min dcol (- (the fixnum (cols *state*)) dcol))))
+    (declare (type fixnum minrow mincol))
+    (sqrt (logand most-positive-fixnum (+ (* minrow minrow)
+                                          (* mincol mincol))))))
 
 
 (defun distance2 (row1 col1 row2 col2)

@@ -122,9 +122,10 @@
   (let* ((split (split-state-string string))
          (row (parse-integer (elt split 1)))
          (col (parse-integer (elt split 2))))
-    (push (list col row) (slot-value *state* 'food))  ; TODO push class
-    (setf (aref (game-map *state*) row col)
-          (make-instance 'food :row row :col col :start-turn (turn *state*)))))
+    (let ((food (make-instance 'food :row row :col col
+                               :start-turn (turn *state*))))
+      (push food (food *state*))
+      (setf (aref (game-map *state*) row col) food))))
 
 
 (defun set-water (string)

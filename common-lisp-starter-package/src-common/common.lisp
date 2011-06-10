@@ -42,6 +42,10 @@
     (logand most-positive-fixnum (+ (* minrow minrow) (* mincol mincol)))))
 
 
+(defun enemyp (ant)
+  (> (pid ant) 0))
+
+
 (defun errmsg (&rest args)
   (format (error-stream *state*) (apply #'mkstr args))
   (force-output (error-stream *state*)))
@@ -49,6 +53,10 @@
 
 (defun foodp (tile)
   (typep tile 'food))
+
+
+(defun friendlyp (ant)
+  (= 0 (pid ant)))
 
 
 (defun host2str (host)

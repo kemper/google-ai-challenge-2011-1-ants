@@ -10,8 +10,8 @@
 ;; in the direction is not a water tile.
 (defun do-turn ()
   (loop for ant in (reverse (my-ants *state*))
-        for row = (elt ant 0)
-        for col = (elt ant 1)
+        for row = (row ant)
+        for col = (col ant)
         do (cond ((not (water? row col :north)) (issue-order row col :north))
                  ((not (water? row col :east))  (issue-order row col :east))
                  ((not (water? row col :south)) (issue-order row col :south))

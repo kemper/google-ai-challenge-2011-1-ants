@@ -94,14 +94,12 @@
   (let* ((split (split-state-string string))
          (row (parse-integer (elt split 1)))
          (col (parse-integer (elt split 2)))
-         (owner (parse-integer (elt split 3))))
-    ;; TODO push class to lists
+         (owner (parse-integer (elt split 3)))
+         (ant (make-instance 'ant :row row :col col :pid owner)))
     (if (= owner 0)
-        (push (list row col) (slot-value *state* 'my-ants))
-        (push (list row col owner) (slot-value *state* 'enemy-ants)))
-    (setf (aref (game-map *state*) row col)
-          ;; TODO perhaps create ant-lite class?
-          (make-instance 'ant :row row :col col :pid owner))))
+        (push ant (my-ants *state*))
+        (push ant (enemy-ants *state*)))
+    (setf (aref (game-map *state*) row col) ant)))
 
 
 ;; TODO check if the ant's already at row,col and set it to dead if so

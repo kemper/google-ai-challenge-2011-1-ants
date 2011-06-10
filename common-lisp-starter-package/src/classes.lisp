@@ -6,5 +6,5 @@
 ;;; Classes
 
 (defclass ants-bot-state (state)
-  ((enemy-ants :reader enemy-ants :initform nil)
-   (my-ants :reader my-ants :initform nil)))
+  ((enemy-ants :accessor enemy-ants :initform nil)
+   (my-ants :accessor my-ants :initform nil)))

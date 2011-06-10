@@ -268,17 +268,19 @@
         for dst-row = (order-dst-row order)
         for dst-col = (order-dst-col order)
         for ant = (aref (game-map *state*) src-row src-col)
-        do (vector-push-extend (key2dir (order-direction order)) (orders ant))
-           (setf (slot-value ant 'row) dst-row
-                 (slot-value ant 'col) dst-col
-                 (aref (game-map *state*) src-row src-col) +land+)
-           (unless (dead ant)
-             (setf (aref (game-map *state*) dst-row dst-col) ant))
-           (when (dead ant)
-             (let ((bot (aref (bots *state*) bot-id)))
-               (setf (slot-value bot 'ants) (remove ant (ants bot)))
-               ; TODO scoring for collided ants
-               )))
+        do (when (antp ant)
+             (vector-push-extend (key2dir (order-direction order))
+                                 (orders ant))
+             (setf (slot-value ant 'row) dst-row
+                   (slot-value ant 'col) dst-col
+                   (aref (game-map *state*) src-row src-col) +land+)
+             (unless (dead ant)
+               (setf (aref (game-map *state*) dst-row dst-col) ant))
+             (when (dead ant)
+               (let ((bot (aref (bots *state*) bot-id)))
+                 (setf (slot-value bot 'ants) (remove ant (ants bot)))
+                 ; TODO scoring for collided ants
+                 ))))
   (update-immobile-ant-orders))
 
 

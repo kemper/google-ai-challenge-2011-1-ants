@@ -88,29 +88,35 @@
                  while (peek-char nil *input* nil)  ; run until we receive EOF
                  for turn from 0
                  do (logmsg "--- turn: " turn " ---~%")
-                    (logmsg "Sending game state... ")
+                    (logmsg "Sending game state...~%")
                     (loop for line = (read-line *input* nil)
                           until (or (starts-with line "go")
                                     (starts-with line "ready"))
                           do (when line
+                               (logmsg "| " line "~%")
                                (when (starts-with line "end")
                                  (setf end-of-game-p t))
                                (write-line line stream)
                                (force-output stream))
                           finally (when line
+                                    (logmsg "| " line "~%")
                                     (write-line line stream)
                                     (force-output stream)))
-                    (logmsg "Receiving bot response... ")
+                    (logmsg "Receiving bot response...~%")
                     (loop for line = (read-line stream nil)
                           until (or (starts-with line "go")
                                     end-of-game-p)
                           do (when line
+                               (logmsg "| " line "~%")
                                (write-line line *output*)
                                (force-output *output*))
                           finally (when line
+                                    (logmsg "| " line "~%")
                                     (write-line line *output*)
                                     (force-output *output*)))
                     (when end-of-game-p
                       (loop-finish))))
       (ignore-errors (socket-close socket))))
+  ;; It doesn't get here if no "end" is sent by the game engine.
+  (logmsg "~&=== ProxyBot finished: " (current-date-time-string) " ===~%")
   (close-log))

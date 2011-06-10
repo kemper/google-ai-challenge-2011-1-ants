@@ -17,7 +17,7 @@
            :address-in-use :connection-lost :connection-refused :error-handler
            :socket-error-handler :user-interrupt
            ;; functions
-           :alivep :antp :current-date-time-string :distance :errmsg :foodp
-           :host2str :landp :logmsg :mkstr :new-location :par-value
-           :print-game-map :quit :random-elt :starts-with :wall-time :water?
-           :waterp :wrapped-row-col))
+           :alivep :antp :current-date-time-string :distance :distance2 :errmsg
+           :foodp :host2str :landp :logmsg :mkstr :nearby-ants :new-location
+           :par-value :print-game-map :quit :random-elt :starts-with
+           :tile-if-reachable :wall-time :water? :waterp :wrapped-row-col))

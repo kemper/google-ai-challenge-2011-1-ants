@@ -154,18 +154,6 @@
         ((equal direction "W") :west)))
 
 
-(defun distance2 (row1 col1 row2 col2)
-  (declare (inline * + - abs cols logand min rows vector)
-           (optimize (speed 3))
-           (type fixnum row1 col1 row2 col2))
-  (let* ((drow (abs (- row1 row2)))
-         (dcol (abs (- col1 col2)))
-         (minrow (min drow (- (the fixnum (rows *state*)) drow)))
-         (mincol (min dcol (- (the fixnum (cols *state*)) dcol))))
-    (declare (type fixnum minrow mincol))
-    (logand most-positive-fixnum (+ (* minrow minrow) (* mincol mincol)))))
-
-
 (defun do-turn (turn)
   (declare (ignore turn))
   (init-scores-for-new-turn)
@@ -303,17 +291,6 @@
                  ; TODO scoring for collided ants
                  ))))
   (update-immobile-ant-orders))
-
-
-(defun nearby-ants (row col max-dist2 &optional (exclude -1))
-  (loop with dist = (floor (sqrt max-dist2))
-        for roff from (- row dist) to (+ row dist)
-        append (loop for coff from (- col dist) to (+ col dist)
-                     for tile = (tile-if-reachable max-dist2 row col roff coff)
-                     when (and (antp tile)
-                               (and (/= row 0) (/= col 0))
-                               (/= exclude (pid tile)))
-                       collect tile)))
 
 
 (defun no-turn-time-left-p (turn-start-time)
@@ -758,14 +735,6 @@
         for bot = (make-instance 'bot :command-line command-line :process proc)
         do (vector-push-extend bot (bots *state*))
            (make-io-thread (bot-id bot))))
-
-
-(defun tile-if-reachable (radius2 src-row src-col dst-row dst-col)
-  (let* ((wrc (wrapped-row-col dst-row dst-col))
-         (wrow (elt wrc 0))
-         (wcol (elt wrc 1)))
-    (when (<= (distance2 src-row src-col wrow wcol) radius2)
-      (aref (game-map *state*) wrow wcol))))
 
 
 (defun turn-time-left-p (turn-start-time)

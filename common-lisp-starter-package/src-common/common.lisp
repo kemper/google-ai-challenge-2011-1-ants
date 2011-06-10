@@ -30,6 +30,18 @@
     (sqrt (+ (* minrow minrow) (* mincol mincol)))))
 
 
+(defun distance2 (row1 col1 row2 col2)
+  (declare (inline * + - abs cols logand min rows vector)
+           (optimize (speed 3))
+           (type fixnum row1 col1 row2 col2))
+  (let* ((drow (abs (- row1 row2)))
+         (dcol (abs (- col1 col2)))
+         (minrow (min drow (- (the fixnum (rows *state*)) drow)))
+         (mincol (min dcol (- (the fixnum (cols *state*)) dcol))))
+    (declare (type fixnum minrow mincol))
+    (logand most-positive-fixnum (+ (* minrow minrow) (* mincol mincol)))))
+
+
 (defun errmsg (&rest args)
   (format (error-stream *state*) (apply #'mkstr args))
   (force-output (error-stream *state*)))
@@ -69,6 +81,16 @@
   (with-output-to-string (s)
     (dolist (a args)
       (princ a s))))
+
+
+(defun nearby-ants (row col max-dist2 &optional (exclude -1))
+  (loop with dist = (floor (sqrt max-dist2))
+        for roff from (- row dist) to (+ row dist)
+        append (loop for coff from (- col dist) to (+ col dist)
+                     for tile = (tile-if-reachable max-dist2 row col roff coff)
+                     when (and (antp tile) (/= roff row) (/= coff col)
+                               (/= exclude (pid tile)))
+                       collect tile)))
 
 
 (defun new-location (row col direction)
@@ -139,6 +161,14 @@
     (when (and (> sublen 0)
                (<= sublen (length sequence)))
       (equal (subseq sequence 0 sublen) subsequence))))
+
+
+(defun tile-if-reachable (radius2 src-row src-col dst-row dst-col)
+  (let* ((wrc (wrapped-row-col dst-row dst-col))
+         (wrow (elt wrc 0))
+         (wcol (elt wrc 1)))
+    (when (<= (distance2 src-row src-col wrow wcol) radius2)
+      (aref (game-map *state*) wrow wcol))))
 
 
 (let ((time-units (/ 1.0 internal-time-units-per-second)))

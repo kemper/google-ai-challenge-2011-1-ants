@@ -53,3 +53,11 @@
    (error-stream :reader error-stream :initarg :error-stream
                  :initform *error-output*)
    (log-stream :reader log-stream :initform nil)))  ; TODO? *debug-io*
+
+
+;;; PRINT-OBJECT Methods
+
+(defmethod print-object ((obj ant) stream)
+  (format stream "<A ~D:~D,~D>" (pid obj) (row obj) (col obj)))
+  ;(print-unreadable-object (obj stream :type t)
+  ;  (format stream "fitness=~A n-nodes=~A" (fitness obj) (n-nodes obj))))

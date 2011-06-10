@@ -12,10 +12,10 @@
   (loop for ant in (reverse (my-ants *state*))
         for row = (row ant)
         for col = (col ant)
-        do (cond ((not (water? row col :north)) (issue-order row col :north))
-                 ((not (water? row col :east))  (issue-order row col :east))
-                 ((not (water? row col :south)) (issue-order row col :south))
-                 ((not (water? row col :west))  (issue-order row col :west)))))
+        do (loop for dir in '(:north :east :south :west)
+                 do (unless (water? row col dir)
+                      (issue-order row col dir)
+                      (loop-finish)))))
 
 
 ;;; Main Program

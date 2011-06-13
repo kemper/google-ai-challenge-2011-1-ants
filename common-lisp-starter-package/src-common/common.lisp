@@ -169,6 +169,13 @@
       (elt sequence (random length)))))
 
 
+(defun slimesg (&rest args)
+  (let ((swank:*globally-redirect-io* t))
+    (when *verbose*
+      (format t (apply #'mkstr args))
+      (force-output t))))
+
+
 (defun starts-with (sequence subsequence)
   (let ((sublen (length subsequence)))
     (when (and (> sublen 0)

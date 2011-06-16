@@ -13,7 +13,10 @@
         for row = (row ant)
         for col = (col ant)
         do (loop for dir in '(:north :east :south :west)
-                 do (unless (water? row col dir)
+                 for new-location = (new-location row col dir)
+                 for nlrow = (elt new-location 0)
+                 for nlcol = (elt new-location 1)
+                 do (unless (waterp (tile-at nlrow nlcol))
                       (issue-order row col dir)
                       (loop-finish)))))
 

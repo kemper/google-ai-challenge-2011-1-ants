@@ -37,5 +37,4 @@
 (defun user-interrupt (arg)
   (declare (ignore arg))
   (logmsg "~&User interrupt. Aborting...~%")
-  ;(quit)
-  )
+  (quit))

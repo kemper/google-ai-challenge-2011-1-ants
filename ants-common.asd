@@ -9,4 +9,5 @@
                              (:file "specials")
                              (:file "classes")
                              (:file "handlers")
+                             (:file "predicates")
                              (:file "common")))))

@@ -5,14 +5,6 @@
 
 ;;; Functions
 
-(defun alivep (tile)
-  (not (dead tile)))
-
-
-(defun antp (tile)
-  (typep tile 'ant))
-
-
 (defun current-date-time-string ()
   (multiple-value-bind (sec min hour day month year)
       (get-decoded-time)
@@ -47,21 +39,9 @@
     (logand most-positive-fixnum (+ (* minrow minrow) (* mincol mincol)))))
 
 
-(defun enemyp (ant)
-  (> (pid ant) 0))
-
-
 (defun errmsg (&rest args)
   (format (error-stream *state*) (apply #'mkstr args))
   (force-output (error-stream *state*)))
-
-
-(defun foodp (tile)
-  (typep tile 'food))
-
-
-(defun friendlyp (ant)
-  (= 0 (pid ant)))
 
 
 (defun host2str (host)
@@ -71,15 +51,12 @@
         (t host)))
 
 
-(defun landp (tile)
-  (typep tile 'land))
-
-
 (defun last1 (sequence)
   (let ((length (length sequence)))
     (when (> length 0)
       (elt sequence (- length 1)))))
 
+;; TODO? (defun (setf last1) ...
 (defsetf last1 (sequence) (value)
   `(setf (elt ,sequence (- (length ,sequence) 1)) ,value))
 
@@ -107,7 +84,7 @@
 
 
 (defun new-location (row col direction)
-  "Returns '(NEW-ROW NEW-COL) for ROW,COL and DIRECTION for a grid that
+  "Returns #(NEW-ROW NEW-COL) for ROW,COL and DIRECTION for a grid that
   wraps around."
   (wrapped-row-col (cond ((equal direction :north) (- row 1))
                          ((equal direction :south) (+ row 1))
@@ -153,13 +130,13 @@
 ;; grabbed from Clon
 (defun quit (&optional (status 0))
   "Quit the current application with STATUS."
-  #+sbcl  (sb-ext:quit :unix-status status)
-  #+cmu   (unix:unix-exit status)
-  #+ccl   (ccl:quit status)
-  #+ecl   (ext:quit status)
-  #+clisp (ext:exit status)
   #+abcl  (extensions:exit :status status)
-  #-(and sbcl cmu ccl ecl clisp abcl) (cl-user::quit))
+  #+ccl   (ccl:quit status)
+  #+clisp (ext:exit status)
+  #+cmu   (unix:unix-exit status)
+  #+ecl   (ext:quit status)
+  #+sbcl  (sb-ext:quit :unix-status status)
+  #-(and abcl ccl clisp cmu ecl sbcl) (cl-user::quit))
 
 
 (defun random-elt (sequence)
@@ -184,6 +161,7 @@
       (equal (subseq sequence 0 sublen) subsequence))))
 
 
+;; TODO? (defun (setf tile-at) ...)
 (defun tile-at (row col)
   (aref (game-map *state*) row col))
 
@@ -193,7 +171,7 @@
          (wrow (elt wrc 0))
          (wcol (elt wrc 1)))
     (when (<= (distance2 src-row src-col wrow wcol) radius2)
-      (aref (game-map *state*) wrow wcol))))
+      (tile-at wrow wcol))))
 
 
 (let ((time-units (/ 1.0 internal-time-units-per-second)))
@@ -203,17 +181,6 @@
     "Returns the time in seconds (as a FLOAT) since SBCL was started."
     (+ (* (get-internal-real-time) time-units)
        offset)))
-
-
-(defun water? (row col direction)
-  "Returns T if the tile in the DIRECTION of ROW,COL is water, otherwise
-  returns NIL."
-  (let ((nl (new-location row col direction)))
-    (typep (aref (game-map *state*) (elt nl 0) (elt nl 1)) 'water)))
-
-
-(defun waterp (tile)
-  (typep tile 'water))
 
 
 (defun wrapped-row-col (row col)

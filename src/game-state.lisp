@@ -82,9 +82,9 @@
 
 (defun reset-some-state ()
   "Sets (ENEMY-ANTS *STATE*), (MY-ANTS *STATE*) and (FOOD *STATE*) to NIL."
-  (setf (slot-value *state* 'enemy-ants) nil
-        (slot-value *state* 'my-ants)    nil
-        (slot-value *state* 'food)       nil))
+  (setf (enemy-ants *state*) nil
+        (my-ants *state*)    nil
+        (food *state*)       nil))
 
 
 (defun set-ant (string)

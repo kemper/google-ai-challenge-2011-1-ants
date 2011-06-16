@@ -170,10 +170,11 @@
 
 
 (defun slimesg (&rest args)
-  (let ((swank:*globally-redirect-io* t))
-    (when *verbose*
-      (format t (apply #'mkstr args))
-      (force-output t))))
+  #+swank (let ((swank:*globally-redirect-io* t))
+            (when *verbose*
+              (format t (apply #'mkstr args))
+              (force-output t)))
+  #-swank (apply #'logmsg args))
 
 
 (defun starts-with (sequence subsequence)
@@ -181,6 +182,10 @@
     (when (and (> sublen 0)
                (<= sublen (length sequence)))
       (equal (subseq sequence 0 sublen) subsequence))))
+
+
+(defun tile-at (row col)
+  (aref (game-map *state*) row col))
 
 
 (defun tile-if-reachable (radius2 src-row src-col dst-row dst-col)

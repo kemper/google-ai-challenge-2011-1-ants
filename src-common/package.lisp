@@ -20,5 +20,5 @@
            :alivep :antp :current-date-time-string :distance :distance2 :enemyp
            :errmsg :foodp :friendlyp :host2str :landp :logmsg :mkstr
            :nearby-ants :new-location :par-value :print-game-map :quit
-           :random-elt :slimesg :starts-with :tile-if-reachable :wall-time
-           :water? :waterp :wrapped-row-col))
+           :random-elt :slimesg :starts-with :tile-at :tile-if-reachable
+           :wall-time :water? :waterp :wrapped-row-col))

@@ -5,7 +5,7 @@
 
 ;;; State
 
-(setf *state* (make-instance 'state :output nil))
+(setf *state* (make-instance 'ants-bot-state :output nil))
 
 
 ;;; Turns
@@ -26,8 +26,8 @@ ready
 ;;   0 1 2 3 4 5 6
 ;; 0 . % % % % . .
 ;; 1 . . % % . * .
-;; 2 . * % . . . .
-;; 3 . . . . . . .
+;; 2 . * % . . . b
+;; 3 . . . . a b .
 (defvar turn-1 "turn 1
 f 1 5
 f 2 1
@@ -38,5 +38,8 @@ w 0 4
 w 1 2
 w 1 3
 w 2 2
+a 2 6 1
+a 3 4 0
+a 3 5 1
 go
 ")

@@ -78,9 +78,9 @@
         for roff from (- row dist) to (+ row dist)
         append (loop for coff from (- col dist) to (+ col dist)
                      for tile = (tile-if-reachable max-dist2 row col roff coff)
-                     when (and (antp tile) (/= roff row) (/= coff col)
-                               (/= exclude (pid tile)))
-                       collect tile)))
+                     when (and (antp tile) (/= exclude (pid tile))
+                               (not (and (= roff row) (= coff col))))
+                       collect (vector tile (distance row col roff coff)))))
 
 
 (defun new-location (row col direction)

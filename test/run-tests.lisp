@@ -209,7 +209,6 @@
   (assert-false (landp (tile-at 2 6)))
   (assert-false (landp (tile-at 3 4))))
 
-(format t "~&nearby-ants: ~S~%" (nearby-ants 3 4 5))  ; why not <A 1:3,5> too?
 (define-test nearby-ants
   (assert-equal 0 (length (nearby-ants 3 4 0.5)))
   (assert-equal 1 (length (nearby-ants 3 4 1)))

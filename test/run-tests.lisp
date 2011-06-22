@@ -2,8 +2,8 @@
 
 (require :asdf)
 
-;; lisp-unit generates some style warnings when being compiled
-(setf *muffled-warnings* 'style-warning)
+;; ignore lisp-unit style warnings
+#+sbcl (setf *muffled-warnings* 'style-warning)
 
 
 ;;; Packages
@@ -44,7 +44,7 @@
   (assert-equal 3 (last1 #(1 2 3))))
 
 (define-test mkstr
-  (assert-equal "abc1de23fG456HI" (mkstr "abc" 1 "de" 23 "f" 'g 456 'hi)))
+  (assert-equal "abc1de23fG456HI" (mkstr "abc" 1 "de" 23 "f" 'g '456 'hi)))
 
 (define-test par-value
   (assert-equal 1 (par-value "a 1"))
@@ -83,77 +83,77 @@
 
 ;;; Manipulating *STATE*
 
-(setf (slot-value *state* 'input) (make-string-input-stream turn-0))
+(setf (slot-value *state* 'input) (make-string-input-stream *turn-0*))
 (parse-game-state)
 
 (define-test distance
-  (assert-equal 0.0       (distance 0 0 0 0))
-  (assert-equal 1.0       (distance 0 0 1 0))
-  (assert-equal 1.0       (distance 0 0 0 1))
-  (assert-equal 1.4142135 (distance 0 0 1 1))
-  (assert-equal 1.0       (distance 0 0 0 6))
-  (assert-equal 1.0       (distance 0 0 3 0))
-  (assert-equal 1.4142135 (distance 0 0 3 6))
-  (assert-equal 3.0       (distance 0 0 0 3))
-  (assert-equal 3.0       (distance 0 0 0 4))
-  (assert-equal 2.236068  (distance 0 0 1 2))
-  (assert-equal 3.6055512 (distance 0 0 2 3))
-  (assert-equal 3.6055512 (distance 0 0 2 4))
-  (assert-equal 2.236068  (distance 0 0 3 5)))
+  (assert-equal 0.0       (distance 0 0  0  0))
+  (assert-equal 1.0       (distance 0 0  1  0))
+  (assert-equal 1.0       (distance 0 0  0  1))
+  (assert-equal 1.4142135 (distance 0 0  1  1))
+  (assert-equal 1.0       (distance 0 0  0 19))
+  (assert-equal 1.0       (distance 0 0 14  0))
+  (assert-equal 1.4142135 (distance 0 0 14 19))
+  (assert-equal 3.0       (distance 0 0  0  3))
+  (assert-equal 3.0       (distance 0 0  0 17))
+  (assert-equal 2.236068  (distance 0 0  1  2))
+  (assert-equal 3.6055512 (distance 0 0  2  3))
+  (assert-equal 3.6055512 (distance 0 0  2 17))
+  (assert-equal 2.236068  (distance 0 0 14 18)))
 
 (define-test distance2
-  (assert-equal  0 (distance2 0 0 0 0))
-  (assert-equal  1 (distance2 0 0 1 0))
-  (assert-equal  1 (distance2 0 0 0 1))
-  (assert-equal  2 (distance2 0 0 1 1))
-  (assert-equal  1 (distance2 0 0 0 6))
-  (assert-equal  1 (distance2 0 0 3 0))
-  (assert-equal  2 (distance2 0 0 3 6))
-  (assert-equal  9 (distance2 0 0 0 3))
-  (assert-equal  9 (distance2 0 0 0 4))
-  (assert-equal  5 (distance2 0 0 1 2))
-  (assert-equal 13 (distance2 0 0 2 3))
-  (assert-equal 13 (distance2 0 0 2 4))
-  (assert-equal  5 (distance2 0 0 3 5)))
+  (assert-equal  0 (distance2 0 0  0  0))
+  (assert-equal  1 (distance2 0 0  1  0))
+  (assert-equal  1 (distance2 0 0  0  1))
+  (assert-equal  2 (distance2 0 0  1  1))
+  (assert-equal  1 (distance2 0 0  0 19))
+  (assert-equal  1 (distance2 0 0 14  0))
+  (assert-equal  2 (distance2 0 0 14 19))
+  (assert-equal  9 (distance2 0 0  0  3))
+  (assert-equal  9 (distance2 0 0  0 17))
+  (assert-equal  5 (distance2 0 0  1  2))
+  (assert-equal 13 (distance2 0 0  2  3))
+  (assert-equal 13 (distance2 0 0  2 17))
+  (assert-equal  5 (distance2 0 0 14 18)))
 
 (define-test game-parameters
   (assert-equal 6 (attack-radius2 *state*))
-  (assert-equal 7 (cols *state*))
+  (assert-equal 20 (cols *state*))
   (assert-equal 2.5 (load-time *state*))
-  (assert-equal 4 (rows *state*))
+  (assert-equal 15 (rows *state*))
   (assert-equal 6 (spawn-radius2 *state*))
   ;; This is somewhat counter-intuitive, but RUN-TESTS is run later and in the
-  ;; meantime (TURN *STATE*) has been further modified.
+  ;; meantime (TURN *STATE*) has been modified again by another call to P-G-S.
   (assert-equal 1 (turn *state*))
   (assert-equal 500 (turns *state*))
   (assert-equal 2.0 (turn-time *state*))
   (assert-equal 93 (view-radius2 *state*)))
 
 (define-test new-location
-  (assert-equalp #(1 3) (new-location 2 3 :north))
-  (assert-equalp #(2 4) (new-location 2 3 :east))
-  (assert-equalp #(3 3) (new-location 2 3 :south))
-  (assert-equalp #(2 2) (new-location 2 3 :west))
-  (assert-equalp #(3 0) (new-location 0 0 :north))
-  (assert-equalp #(0 6) (new-location 0 0 :west))
-  (assert-equalp #(3 0) (new-location 3 6 :east))
-  (assert-equalp #(0 6) (new-location 3 6 :south)))
+  (assert-equalp #( 1  3) (new-location  2  3 :north))
+  (assert-equalp #( 2  4) (new-location  2  3 :east))
+  (assert-equalp #( 3  3) (new-location  2  3 :south))
+  (assert-equalp #( 2  2) (new-location  2  3 :west))
+  (assert-equalp #(14  0) (new-location  0  0 :north))
+  (assert-equalp #( 0 19) (new-location  0  0 :west))
+  (assert-equalp #(14  0) (new-location 14 19 :east))
+  (assert-equalp #( 0 19) (new-location 14 19 :south)))
 
 (define-test wrapped-row-col
-  (assert-equalp #(2 3) (wrapped-row-col 2 3))
-  (assert-equalp #(2 3) (wrapped-row-col 2 3))
-  (assert-equalp #(2 3) (wrapped-row-col 2 3))
-  (assert-equalp #(2 3) (wrapped-row-col 2 3))
-  (assert-equalp #(3 0) (wrapped-row-col -1 0))
-  (assert-equalp #(0 6) (wrapped-row-col 0 -1))
-  (assert-equalp #(3 0) (wrapped-row-col 3 7))
-  (assert-equalp #(0 6) (wrapped-row-col 4 6))
-  (assert-equalp #(3 6) (wrapped-row-col -1 -1))
-  (assert-equalp #(3 0) (wrapped-row-col -1  7))
-  (assert-equalp #(0 6) (wrapped-row-col  4 -1))
-  (assert-equalp #(0 0) (wrapped-row-col  4  7)))
+  (assert-equalp #( 2  3) (wrapped-row-col  2  3))
+  (assert-equalp #( 2  3) (wrapped-row-col  2  3))
+  (assert-equalp #( 2  3) (wrapped-row-col  2  3))
+  (assert-equalp #( 2  3) (wrapped-row-col  2  3))
+  (assert-equalp #(14  0) (wrapped-row-col -1  0))
+  (assert-equalp #( 0 19) (wrapped-row-col  0 -1))
+  (assert-equalp #(14  0) (wrapped-row-col 14 20))
+  (assert-equalp #( 0 19) (wrapped-row-col 15 19))
+  (assert-equalp #(14 19) (wrapped-row-col -1 -1))
+  (assert-equalp #(14  0) (wrapped-row-col -1 20))
+  (assert-equalp #( 0 19) (wrapped-row-col 15 -1))
+  (assert-equalp #( 0  0) (wrapped-row-col 15 20)))
 
-(setf (slot-value *state* 'input) (make-string-input-stream turn-1))
+(setf (slot-value *state* 'input) (make-string-input-stream *turn-1*))
 (parse-game-state)
 
 (define-test antp

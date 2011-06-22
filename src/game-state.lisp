@@ -70,14 +70,13 @@
 (defun reset-game-map ()
   "Sets all tiles on the map to land if they're not already land or water.
   Modifies (GAME-MAP *STATE*)."
-  (loop with game-map = (game-map *state*)
-        with dim = (array-dimensions game-map)
+  (loop with dim = (array-dimensions (game-map *state*))
         for row from 0 below (first dim)
         do (loop for col from 0 below (second dim)
-                 for tile-type = (type-of (aref game-map row col))
+                 for tile-type = (type-of (tile-at row col))
                  unless (or (equal tile-type 'land)
                             (equal tile-type 'water))
-                 do (setf (aref game-map row col) +land+))))
+                 do (setf (tile-at row col) +land+))))
 
 
 (defun reset-some-state ()
@@ -99,7 +98,7 @@
     (if (= owner 0)
         (push ant (my-ants *state*))
         (push ant (enemy-ants *state*)))
-    (setf (aref (game-map *state*) row col) ant)))
+    (setf (tile-at row col) ant)))
 
 
 ;; TODO check if the ant's already at row,col and set it to dead if so
@@ -111,8 +110,8 @@
          (row (parse-integer (elt split 1)))
          (col (parse-integer (elt split 2)))
          (owner (parse-integer (elt split 3))))
-    (unless (typep (aref (game-map *state*) row col) 'food)  ; TODO foodp
-      (setf (aref (game-map *state*) row col)
+    (unless (foodp (tile-at row col))
+      (setf (tile-at row col)
             (make-instance 'ant :row row :col col :pid owner)))))
 
 
@@ -125,7 +124,7 @@
     (let ((food (make-instance 'food :row row :col col
                                :start-turn (turn *state*))))
       (push food (food *state*))
-      (setf (aref (game-map *state*) row col) food))))
+      (setf (tile-at row col) food))))
 
 
 (defun set-water (string)
@@ -134,8 +133,7 @@
   (let* ((split (split-state-string string))
          (row (parse-integer (elt split 1)))
          (col (parse-integer (elt split 2))))
-    (setf (aref (game-map *state*) row col)
-          (make-instance 'water :row row :col col))))
+    (setf (tile-at row col) (make-instance 'water :row row :col col))))
 
 
 (defun split-state-string (string)

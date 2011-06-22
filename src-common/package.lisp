@@ -5,7 +5,7 @@
 (defpackage :ants-common
   (:use :cl)
   (:export ;; specials
-           :*state* :*verbose* :+land+
+           :*state* :*verbose* :+land+ :2pi
            ;; classes and accessors / readers
            :ant :food :land :state :water
            :attack-radius2 :col :cols :conversion-turn :dead :end-turn

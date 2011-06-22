@@ -13,3 +13,5 @@
 
 ;; See classes.lisp
 ;(defvar +land+ (make-instance 'land))
+
+(defvar 2pi (* 2 pi))

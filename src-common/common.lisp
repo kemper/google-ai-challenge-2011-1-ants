@@ -161,9 +161,11 @@
       (equal (subseq sequence 0 sublen) subsequence))))
 
 
-;; TODO? (defun (setf tile-at) ...)
 (defun tile-at (row col)
   (aref (game-map *state*) row col))
+
+(defun (setf tile-at) (value row col)
+  (setf (aref (game-map *state*) row col) value))
 
 
 (defun tile-if-reachable (radius2 src-row src-col dst-row dst-col)

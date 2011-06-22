@@ -9,6 +9,7 @@
 ;; ants and issues an order to go either north, east, south or west if the tile
 ;; in the direction is not a water tile.
 (defun do-turn ()
+  (logmsg "[do-turn] " (length (my-ants *state*)) " ants~%")
   (loop for ant in (reverse (my-ants *state*))
         for row = (row ant)
         for col = (col ant)
@@ -46,7 +47,7 @@
                (logmsg "~&[start] " (current-date-time-string) "~%")
                (do-turn)
                (finish-turn)
-               (logmsg "~&[  end] move took " (turn-time-used) " seconds ("
+               (logmsg "~&[end] move took " (turn-time-used) " seconds ("
                        (turn-time-remaining) " left).~%")))))
 
 

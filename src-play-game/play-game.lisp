@@ -128,11 +128,9 @@
 
 (defun check-water ()
   (loop for order in (copy-seq (orders *state*))
-        for bot-id = (order-bot-id order)
-        for row = (order-src-row order)
-        for col = (order-src-col order)
-        for dir = (order-direction order)
-        do (when (water? row col dir)
+        for new-location = (new-location (order-src-row order)
+                                 (order-src-col order) (order-direction order))
+        do (when (waterp (tile-at (elt new-location 0) (elt new-location 1)))
              ;; TODO report row col dir
              (logmsg "Bot " bot-id " ordered an ant into water. Ignoring...~%")
              ;; TODO use DELETE?

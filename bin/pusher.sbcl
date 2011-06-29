@@ -1,0 +1,114 @@
+#!/usr/bin/sbcl --script
+
+;;; Variables
+
+(defvar *debug* *debug-io*)
+(defvar *input* nil)
+(defvar *mark* nil)
+(defvar *verbose* nil)
+
+
+;;; Functions
+
+(defun in-opts-p (opt opts)
+  (member opt opts :test #'string=))
+
+
+(defun print-usage (&key (quit nil))
+  (format t (concatenate 'string
+    "~&Usage: pusher.sbcl [-?hv] [--help] [--verbose] [--log LOG] [FILE]~%"
+    "~%"
+    "  Logs output and pushes input from FILE to game engine.~%"
+    "~%"
+    "  -?, -h, --help    Print this help and exit.~%"
+    "  -m, --mark        Mark input and output lines.~%"
+    "  -v, --verbose     Verbose logging.~%"
+    "  --log LOG         Verbose logging to LOG (implies \"-v\").~%"
+    "  FILE              Optional file to use as input.~%"))
+  (when quit
+    (quit)))
+
+
+(defun process-command-line-options ()
+  (let* ((argv *posix-argv*)
+         (argc (length argv))
+         (last-opt (elt argv (- argc 1)))
+         (help '("-?" "-h" "--help"))
+         (log '("--log"))
+         (mark '("-m" "--mark"))
+         (verbose '("-v" "--verbose")))
+    (loop for opt in argv
+          do (cond ((in-opts-p opt help)
+                    (print-usage :quit t))
+                   ((in-opts-p opt mark)
+                    (setf *mark* t))
+                   ((in-opts-p opt log)
+                    (let ((pos (position "--log" argv :test #'string=)))
+                      (when (and pos (> argc (+ pos 1)))
+                        (setf *debug* (open (elt argv (+ pos 1))
+                                            :direction :output
+                                            :if-does-not-exist :create
+                                            :if-exists :append)))))
+                   ((in-opts-p opt verbose)
+                    (setf *verbose* t))))
+    (when (and (> argc 1)
+               (not (in-opts-p last-opt (append help log mark verbose)))
+               (not (in-opts-p (elt argv (- argc 2)) log)))
+      (setf *input* (open last-opt)))))
+
+
+(defun send (string)
+  (when *verbose*
+    (format *debug* "~A~A~%" (if *mark* "O: " "") string)
+    (force-output *debug*))
+  (format *standard-output* "~A~%" string)
+  (force-output *standard-output*))
+
+
+(defun send-end-of-turn ()
+  (send "go"))
+
+
+(defun send-from-input ()
+  (loop for line = (read-line *input* nil)
+        while line
+        do (cond ((and (>= (length line) 1) (string= "#" (elt line 0)))
+                  )  ; do nothing...
+                 ((and (>= (length line) 2) (string= "go" (subseq line 0 2)))
+                  (loop-finish))
+                 (t
+                  (when *verbose*
+                    (format *debug* "~A~A~%" (if *mark* "O: " "") line)
+                    (force-output *debug*))
+                  (format *standard-output* "~A~%" line)))))
+
+
+(defun user-interrupt-handler (&rest args)
+  (declare (ignore args))
+  (quit))
+
+
+(defun wait-for-server-output ()
+  (loop for line = (read-line *standard-input* nil)
+        while line
+        do (when *verbose*
+             (format *debug* "~A~A~%" (if *mark* "I: " "") line)
+             (force-output *debug*))
+           (when (or (and (>= (length line) 2)
+                          (string= "go" (subseq line 0 2)))
+                     (and (>= (length line) 5)
+                          (string= "ready" (subseq line 0 5))))
+             (loop-finish))))
+
+
+;;; Main
+
+(handler-bind ((sb-sys:interactive-interrupt #'user-interrupt-handler))
+  (process-command-line-options)
+  (wait-for-server-output)
+  (send-end-of-turn)
+  (loop while t
+        do (wait-for-server-output)
+           (when *input*
+             (send-from-input))
+           (send-end-of-turn)))

@@ -7,6 +7,7 @@
                 :serial t
                 :components ((:file "package")
                              (:file "specials")
+                             (:file "macros")
                              (:file "classes")
                              (:file "handlers")
                              (:file "predicates")

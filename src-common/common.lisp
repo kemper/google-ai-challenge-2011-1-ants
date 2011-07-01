@@ -178,7 +178,6 @@
 
 (let ((time-units (/ 1.0 internal-time-units-per-second)))
   ;; TODO correctly name function: doesn't return wall time
-  ;; TODO use DOUBLE-FLOATs?
   (defun wall-time (&key (offset 0))
     "Returns the time in seconds (as a FLOAT) since SBCL was started."
     (+ (* (get-internal-real-time) time-units)

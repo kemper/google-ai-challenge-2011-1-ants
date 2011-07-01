@@ -26,7 +26,7 @@
    (initial-col :reader initial-col :initarg :initial-col)
    (end-turn :reader end-turn :initform 0)
    (hit-points :accessor hp :initform 1)
-   (dead :reader dead :initform nil)  ; TODO deadp
+   (dead :reader dead :initform nil)
    (player-id :reader pid :initarg :pid)
    (orders :reader orders :initform (make-array 0 :fill-pointer 0))))
 

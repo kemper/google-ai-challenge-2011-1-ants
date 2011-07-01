@@ -41,6 +41,7 @@
   ((orders :accessor orders :initarg :orders :initform nil)
    (bots :reader bots :initform (make-array 0 :fill-pointer 0))
    (food :accessor food :initform nil)
+   (contested-food :accessor contested-food :initform nil)
    (n-players :reader n-players :initarg :n-players :initform nil)
    (map-file :reader map-file :initform nil)
    (rounds :reader rounds :initform nil)

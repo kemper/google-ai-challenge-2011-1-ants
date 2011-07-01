@@ -16,7 +16,7 @@
 
 (defclass food (tile)
   (;; needed in case the food is contested and destroyed
-   (conversion-turn :reader conversion-turn :initform 0
+   (conversion-turn :accessor conversion-turn :initform 0
                     :initarg :conversion-turn)
    (start-turn :reader start-turn :initarg :start-turn :initform 0)))
 

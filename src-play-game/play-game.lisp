@@ -32,8 +32,12 @@
   (aref (bots *state*) (pid ant)))
 
 
-;; TODO move the two loops into seperate functions
 (defun battle-resolution ()
+  (battle-resolution-power))
+
+
+;; TODO move the two loops into seperate functions
+(defun battle-resolution-damage ()
   ;; distribute damage
   (loop with enemy-ants = nil
         with ar2 = (attack-radius2 *state*)
@@ -63,9 +67,33 @@
                (when enemies
                  (loop with score = (/ 1 (length enemies))
                        for enemy in enemies
-                       for bot = (ant-owner enemy)
+                       for bot = (ant-owner (elt enemy 0))
                        do (adjust-score bot score))))
              ;; TODO duplicated in other functions, needs its own function
+             (let ((bot (aref (bots *state*) (pid ant))))
+               (push ant (slot-value bot 'dead-ants))
+               (setf (aref (game-map *state*) (row ant) (col ant)) +land+
+                     (slot-value ant 'dead) t
+                     (slot-value ant 'end-turn) (turn *state*)
+                     (slot-value bot 'ants) (remove ant (ants bot)))))))
+
+
+(defun battle-resolution-power ()
+  (loop with ar2 = (attack-radius2 *state*)
+        for ant in (all-ants)
+        for arow = (row ant)
+        for acol = (col ant)
+        for apid = (pid ant)
+        for nants = (nearby-ants arow acol ar2)
+        for nea = (loop for vec in nants
+                        for nant = (elt vec 0)
+                        when (/= apid (pid nant)) sum 1)
+        for nfa = (loop for vec in nants
+                        for nant = (elt vec 0)
+                        when (= apid (pid nant)) sum 1)
+        do (when (and (> nea 0) (>= nea nfa))
+             (logmsg "[brp] " ant " f:e::" nfa ":" nea "~%")
+             (logmsg "      " ant " dies.~%")
              (let ((bot (aref (bots *state*) (pid ant))))
                (push ant (slot-value bot 'dead-ants))
                (setf (aref (game-map *state*) (row ant) (col ant)) +land+
@@ -132,7 +160,8 @@
                                  (order-src-col order) (order-direction order))
         do (when (waterp (tile-at (elt new-location 0) (elt new-location 1)))
              ;; TODO report row col dir
-             (logmsg "Bot " bot-id " ordered an ant into water. Ignoring...~%")
+             (logmsg "Bot " (order-bot-id order) " ordered an ant into water. "
+                     "Ignoring...~%")
              ;; TODO use DELETE?
              (setf (orders *state*) (remove order (orders *state*))))))
 
@@ -154,6 +183,10 @@
 
 (defun do-turn (turn)
   (declare (ignore turn))
+  ;(with-open-file (f "tmp.log" :direction :output :if-exists :append
+  ;                   :if-does-not-exist :create)
+  ;  (format f "--- ~D ---~%" turn)
+  ;  (print-game-map @game-map f))
   (init-scores-for-new-turn)
   (setf (orders *state*) nil)
   (revitalize-ants)
@@ -520,7 +553,8 @@
     (format f (mkstr "             ]~%"
                      "        },~%"
                      "        \"ants\": [~%"))
-    (loop with food-length = (length (food *state*))
+    (loop with food-length = (+ (length (food *state*))
+                                (length (contested-food *state*)))
           for bot across (bots *state*)
           for i from 1
           do (loop for ant in (append (reverse (ants bot))
@@ -542,14 +576,18 @@
                                       (> food-length 0))
                                    ","
                                    ""))))
-    (loop with food-length = (length (food *state*))
-          for food in (reverse (food *state*))
+    (loop with food-length = (+ (length (food *state*))
+                                (length (contested-food *state*)))
+          for food in (append (reverse (food *state*))
+                              (reverse (contested-food *state*)))
           for i from 1
           do (format f "            [ ~D, ~D, ~D, ~D ]~A~%"
                      (row food)
                      (col food)
                      (start-turn food)
-                     (+ (turns *state*) 1)
+                     (if (= 0 (conversion-turn food))
+                         (+ (turns *state*) 1)
+                         (conversion-turn food))
                      (if (< i food-length) "," "")))
     (format f (mkstr "        ],~%"
                      "        \"scores\": [~%"))
@@ -682,14 +720,17 @@
         for frow = (row food)
         for fcol = (col food)
         for ants = nil
+        for pids = nil
         do (loop for roff from (- frow sr) to (+ frow sr)
                  do (loop for coff from (- fcol sr) to (+ fcol sr)
                          for tile = (tile-if-reachable sr2 frow fcol roff coff)
                          when tile
                            do (when (and (antp tile) (alivep tile))
+                                (pushnew (pid tile) pids)
+                                (logmsg "pids: " pids "~%")
                                 (push tile ants))))
            (cond ;; spawn an ant
-                 ((= (length ants) 1)
+                 ((or (= (length ants) 1) (= (length pids) 1))
                   (setf (food *state*) (remove food (food *state*)))
                   (let* ((pid (pid (first ants)))
                          (bot (aref (bots *state*) pid))
@@ -701,7 +742,9 @@
                     (push ant (slot-value bot 'ants))
                     (adjust-score bot 1)))
                  ;; contested food, destroy it
-                 ((> (length ants) 1)
+                 ((and (> (length ants) 1) (> (length pids) 1))
+                  (setf (conversion-turn food) (turn *state*))
+                  (push food (contested-food *state*))
                   (setf (food *state*) (remove food (food *state*)))
                   (setf (aref (game-map *state*) frow fcol) +land+)))))
 

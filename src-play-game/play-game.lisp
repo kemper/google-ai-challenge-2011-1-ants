@@ -20,8 +20,7 @@
 ;;; Functions
 
 (defun adjust-score (bot delta)
-  ;(incf (last1 (scores bot)) delta))  ; (defsetf last1... doesn't work?
-  (incf (elt (scores bot) (- (length (scores bot)) 1)) delta))
+  (incf (last1 (scores bot)) delta))
 
 
 (defun all-ants ()
@@ -62,8 +61,7 @@
                (setf (slot-value ant 'dead) t
                      (slot-value ant 'end-turn) (turn *state*)
                      (slot-value bot 'ants) (remove ant (ants bot)))
-               (adjust-score (aref (bots *state*) (pid ne-ant)) 1)
-               ))
+               (adjust-score (aref (bots *state*) (pid ne-ant)) 1)))
         finally (loop for ant in mark-as-land
                       do (setf (aref (game-map *state*) (row ant) (col ant))
                                +land+))))

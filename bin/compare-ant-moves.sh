@@ -7,9 +7,8 @@ if [ "$1" = "" ] && [ "$2" = "" ] ; then
     exit 1;
 fi
 
-rm -f compare-ant-moves-{a,b}.replay-pp;
-
 jsonpp $1 | grep "                \"[nesw-]" | sort > compare-ant-moves-a.replay-pp;
 jsonpp $2 | grep "                \"[nesw-]" | sort > compare-ant-moves-b.replay-pp;
 
 diff compare-ant-moves-a.replay-pp compare-ant-moves-b.replay-pp;
+rm -f compare-ant-moves-a.replay-pp compare-ant-moves-b.replay-pp;

@@ -1,0 +1,134 @@
+#!/usr/bin/sbcl --script
+
+;;; Classes
+
+(defclass state ()
+  ((rows :reader rows :initform nil)
+   (cols :reader cols :initform nil)
+   (game-map :reader game-map :initform nil)))
+
+
+;;; Globals
+
+(defvar *food* 0)
+(defvar *players* nil)
+(defvar *state* (make-instance 'state))
+
+
+;;; Functions
+
+(defun logmsg (&rest args)
+  (format *debug-io* (with-output-to-string (s) (dolist (a args) (princ a s))))
+  (force-output *debug-io*))
+
+
+(defun par-value (string)
+  (parse-integer (subseq string (position #\space string) (length string))))
+
+
+(defun starts-with (sequence subsequence)
+  (let ((sublen (length subsequence)))
+    (when (and (> sublen 0)
+               (<= sublen (length sequence)))
+      (equal (subseq sequence 0 sublen) subsequence))))
+
+
+(defun parse-map-line (map-array string row)
+  (when (/= (- (length string) 2) (cols *state*))
+    (logmsg "~&Actual map columns (" (- (length string) 2) ") for this line "
+            "not equal to specified number of~%columns (" (cols *state*) ") "
+            "for this map. Aborting...~%")
+    (quit :unix-status 1))
+  (loop for c across (subseq string 2)
+        for col from 0
+        do (when (and (char/= c #\%) (char/= c #\*) (char/= c #\.))
+             (pushnew (vector row col) *players*))
+           (setf (aref map-array row col) c)))
+
+
+(defun parse-map (file-name)
+  (with-open-file (f file-name)
+    (loop with rows = 0
+          for line = (read-line f nil)
+          while line
+          do (cond ((starts-with line "cols ")
+                    (setf (slot-value *state* 'cols) (par-value line)))
+                   ((starts-with line "rows ")
+                    (setf (slot-value *state* 'rows) (par-value line)))
+                   ((and (starts-with line "m ") (null (cols *state*)))
+                    (logmsg "~&Map missing \"cols n\" line. Aborting...~%")
+                    (quit :unix-status 1))
+                   ((and (starts-with line "m ") (null (rows *state*)))
+                    (logmsg "~&Map missing \"rows n\" line. Aborting...~%")
+                    (quit :unix-status 1))
+                   ((and (starts-with line "m ") (null (game-map *state*)))
+                    (setf (slot-value *state* 'game-map)
+                          (make-array (list (rows *state*) (cols *state*))
+                                      :element-type 'character))
+                    (parse-map-line (game-map *state*) line rows)
+                    (incf rows))
+                   ((starts-with line "m ")
+                    (parse-map-line (game-map *state*) line rows)
+                    (incf rows)))
+             finally (when (/= rows (rows *state*))
+                       (logmsg "~&Actual map rows (" rows ") not equal to "
+                               "specified number of rows (" (rows *state*)
+                               "). Aborting...~%")
+                       (quit :unix-status 1)))))
+
+
+(defun print-game-map (game-map &optional (stream *standard-output*))
+  (format stream "~&rows ~D~%cols ~D~%players ~D~%"
+          (rows *state*) (cols *state*) (length *players*))
+  (loop with dim = (array-dimensions game-map)
+        for row from 0 below (first dim)
+        do (princ #\m stream)
+           (princ #\space stream)
+           (loop for col from 0 below (second dim)
+                 for tile = (aref game-map row col)
+                 do (princ tile stream))
+           (terpri stream)))
+
+
+(defun put-food-on-map ()
+  (loop with n-food = 0
+        until (>= n-food (* (length *players*) *food*))
+        for roff = (random (rows *state*))
+        for coff = (random (cols *state*))
+        do (loop for pos in *players*
+                 for row = (elt pos 0)
+                 for col = (elt pos 1)
+                 for wrc = (wrapped-row-col (+ row roff) (+ col coff))
+                 for wrow = (elt wrc 0)
+                 for wcol = (elt wrc 1)
+                 do (when (char/= (aref (game-map *state*) wrow wcol) #\.)
+                      (loop-finish))
+                    (setf (aref (game-map *state*) wrow wcol) #\*)
+                    (incf n-food))))
+
+
+(defun wrapped-row-col (row col)
+  (let ((rs (rows *state*))
+        (cs (cols *state*)))
+    (vector (cond ((< row 0) (+ rs row))  ; adding negative number
+                  ((>= row rs) (- row rs))
+                  (t row))
+            (cond ((< col 0) (+ cs col))  ; adding negative number
+                  ((>= col cs) (- col cs))
+                  (t col)))))
+
+
+;;; Main Program
+
+(when (< (length sb-ext:*posix-argv*) 2)
+  (format t "~&Usage: put-food-on-map.sbcl MAP [#FOOD]~%")
+  (quit :unix-status 1))
+
+(parse-map (elt sb-ext:*posix-argv* 1))
+
+(if (< (length sb-ext:*posix-argv*) 3)
+  (setf *food* (ceiling (/ (* (rows *state*) (cols *state*)) 100)))
+  (setf *food* (parse-integer (elt sb-ext:*posix-argv* 2))))
+
+(put-food-on-map)
+(print-game-map (game-map *state*))

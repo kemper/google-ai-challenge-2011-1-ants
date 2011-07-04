@@ -31,7 +31,7 @@
   (aref (bots *state*) (pid ant)))
 
 
-;; "Focus"
+;; http://github.com/aichallenge/aichallenge/wiki/Ants-focus-battle-resolution-method
 (defun battle-resolution ()
   (loop with ar2 = (attack-radius2 *state*)
         with mark-as-land = nil
@@ -43,7 +43,7 @@
         for n-enemies = (length nearby-enemies)
         for ne-enemies = nil
         for ne-ant = nil
-        do ;; TODO sub-optimal: loops through whole list
+        do ;; TODO sub-optimal: loops through whole list when not needed
            (loop for vec in nearby-enemies
                  for ne = (elt vec 0)
                  for nerow = (row ne)

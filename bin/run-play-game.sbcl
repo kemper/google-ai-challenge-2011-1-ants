@@ -1,7 +1,15 @@
 #!/usr/bin/sbcl --script
 
+;(pushnew :profile-play-game *features*)
+
 (require :asdf)
+#+profile-play-game (require :sb-sprof)
 
 (load (merge-pathnames "3rd-party/asdf-init.lisp" *default-pathname-defaults*))
 (asdf:oos 'asdf:load-op :play-game)
-(play-game::main)
+
+#+profile-play-game (sb-sprof:with-profiling (:loop nil :report :flat
+                                              :sample-interval 0.001
+                                              :threads :all)
+                      (play-game::main))
+#-profile-play-game (play-game::main)

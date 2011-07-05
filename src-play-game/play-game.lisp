@@ -24,47 +24,42 @@
 
 
 (defun all-ants ()
-  (loop for bot across (bots *state*) append (ants bot)))
+  (loop for bot across @bots append (ants bot)))
 
 
 (defun ant-owner (ant)
-  (aref (bots *state*) (pid ant)))
+  (aref @bots (pid ant)))
+
+
+(defun ant-with-less-or-equal (ants number-of-enemies)
+  (loop for ant in ants
+        for n-enemies = (length (nearby-ants (row ant) (col ant)
+                                             @attack-radius2 (pid ant)))
+        when (<= n-enemies number-of-enemies)
+          do (return-from ant-with-less-or-equal ant)))
 
 
 ;; http://github.com/aichallenge/aichallenge/wiki/Ants-focus-battle-resolution-method
 (defun battle-resolution ()
-  (loop with ar2 = (attack-radius2 *state*)
+  ;; TODO add (declare ...) ?
+  (loop with ar2 = @attack-radius2
         with mark-as-land = nil
         for ant in (all-ants)
-        for arow = (row ant)
-        for acol = (col ant)
         for apid = (pid ant)
-        for nearby-enemies = (nearby-ants arow acol ar2 apid)
+        for nearby-enemies = (nearby-ants (row ant) (col ant) ar2 apid)
         for n-enemies = (length nearby-enemies)
-        for ne-enemies = nil
-        for ne-ant = nil
-        do ;; TODO sub-optimal: loops through whole list when not needed
-           (loop for vec in nearby-enemies
-                 for ne = (elt vec 0)
-                 for nerow = (row ne)
-                 for necol = (col ne)
-                 for nepid = (pid ne)
-                 for enemies = (length (nearby-ants nerow necol ar2 nepid))
-                 do (when (or (null ne-enemies) (< enemies ne-enemies))
-                      (setf ne-enemies enemies)
-                      (setf ne-ant ne)))
-           (when (and (> n-enemies 0) (not (null ne-enemies))
-                      (<= ne-enemies n-enemies))
-             (let ((bot (aref (bots *state*) apid)))
+        for killer = (when (> n-enemies 0)
+                       (ant-with-less-or-equal nearby-enemies n-enemies))
+        do (when killer
+             (let ((bot (aref @bots apid)))
                (push ant (slot-value bot 'dead-ants))
                (pushnew ant mark-as-land)
                (setf (slot-value ant 'dead) t
-                     (slot-value ant 'end-turn) (turn *state*)
+                     (slot-value ant 'end-turn) @turn
                      (slot-value bot 'ants) (remove ant (ants bot)))
-               (adjust-score (aref (bots *state*) (pid ne-ant)) 1)))
-        finally (loop for ant in mark-as-land
-                      do (setf (aref (game-map *state*) (row ant) (col ant))
-                               +land+))))
+               (adjust-score (ant-owner killer) 1)))
+        finally (loop for land in mark-as-land
+                      do (setf (tile-at (row land) (col land)) +land+))))
 
 
 (let ((mapping (make-array 0 :fill-pointer 0 :element-type 'character)))
@@ -78,49 +73,52 @@
 ;; MOVE-ANTS.  (Why?  It's mostly a quick fix because the replay format was
 ;; otherwise invalid because we removed the order.)
 (defun check-collisions ()
-  (loop for order-a in (orders *state*)
+  (loop for order-a in @orders
         for bot-a-id = (order-bot-id order-a)
         for srow-a = (order-src-row order-a)
         for scol-a = (order-src-col order-a)
         for row-a = (order-dst-row order-a)
         for col-a = (order-dst-col order-a)
-        do (loop for order-b in (remove order-a (orders *state*))
+        ;do (loop for order-b in (remove order-a @orders)
+        do (loop for order-b in @orders
                  for bot-b-id = (order-bot-id order-b)
                  for srow-b = (order-src-row order-b)
                  for scol-b = (order-src-col order-b)
                  for row-b = (order-dst-row order-b)
                  for col-b = (order-dst-col order-b)
-                 do (when (and (= row-a row-b)
+                 do (when (and (not (equal order-b order-a))
+                               (= row-a row-b)
                                (= col-a col-b))
-                      (let* ((bot-a (aref (bots *state*) bot-a-id))
-                             (bot-b (aref (bots *state*) bot-b-id))
-                             (ant-a (aref (game-map *state*) srow-a scol-a))
-                             (ant-b (aref (game-map *state*) srow-b scol-b)))
+                      (let* ((bot-a (aref @bots bot-a-id))
+                             (bot-b (aref @bots bot-b-id))
+                             (ant-a (tile-at srow-a scol-a))
+                             (ant-b (tile-at srow-b scol-b)))
                         (push ant-a (slot-value bot-a 'dead-ants))
                         (push ant-b (slot-value bot-b 'dead-ants))
                         (setf (slot-value ant-a 'dead) t
                               (slot-value ant-b 'dead) t
-                              (slot-value ant-a 'end-turn) (turn *state*)
-                              (slot-value ant-b 'end-turn) (turn *state*)))))))
+                              (slot-value ant-a 'end-turn) @turn
+                              (slot-value ant-b 'end-turn) @turn))))))
 
 
+;; TODO remove (it's done in move-ants now)
 (defun check-positions ()
-  (loop for order in (copy-seq (orders *state*))
+  (loop for order in (copy-seq @orders)
         for bot-id = (order-bot-id order)
         for row = (order-src-row order)
         for col = (order-src-col order)
-        do (when (/= bot-id (pid (aref (game-map *state*) row col)))
-             ;; TODO report row col dir
+        do (when (/= bot-id (pid (tile-at row col)))
              (logmsg "Bot " bot-id " issued an order for a position it "
                      "doesn't occupy. Ignoring...~%")
              (logmsg "o: " order "~%")
-             (logmsg "p: " (pid (aref (game-map *state*) row col)) "~%")
+             (logmsg "p: " (pid (tile-at row col)) "~%")
              ;; TODO use DELETE?
-             (setf (orders *state*) (remove order (orders *state*))))))
+             (setf @orders (remove order @orders)))))
 
 
+;; TODO remove (it's done in move-ants now)
 (defun check-water ()
-  (loop for order in (copy-seq (orders *state*))
+  (loop for order in (copy-seq @orders)
         for new-location = (new-location (order-src-row order)
                                  (order-src-col order) (order-direction order))
         do (when (waterp (tile-at (elt new-location 0) (elt new-location 1)))
@@ -128,15 +126,16 @@
              (logmsg "Bot " (order-bot-id order) " ordered an ant into water. "
                      "Ignoring...~%")
              ;; TODO use DELETE?
-             (setf (orders *state*) (remove order (orders *state*))))))
+             (setf @orders (remove order @orders)))))
 
 
+;; TODO remove? (not used in move-ants anymore)
 (defun clear-dead-ants ()
-  (loop for row from 0 below (rows *state*)
-        do (loop for col from 0 below (cols *state*)
-                 for tile = (aref (game-map *state*) row col)
-                 do (when (and (typep tile 'ant) (dead tile))
-                      (setf (aref (game-map *state*) row col) +land+)))))
+  (loop for row from 0 below @rows
+        do (loop for col from 0 below @cols
+                 for tile = (tile-at row col)
+                 do (when (and (antp tile) (dead tile))
+                      (setf (tile-at row col) +land+)))))
 
 
 (defun dir2key (direction)
@@ -146,56 +145,33 @@
         ((equal direction "W") :west)))
 
 
-(defun do-turn (turn)
-  (declare (ignore turn))
-  ;(with-open-file (f "tmp.log" :direction :output :if-exists :append
-  ;                   :if-does-not-exist :create)
-  ;  (format f "--- ~D ---~%" turn)
-  ;  (print-game-map @game-map f))
+(defun do-turn ()
   (init-scores-for-new-turn)
-  (setf (orders *state*) nil)
-  (revitalize-ants)
-  (loop for bot across (bots *state*) do (setf (thread-status bot) :new-turn))
+  (setf @orders nil)
+  ;(revitalize-ants)
+  (loop for bot across @bots do (setf (thread-status bot) :new-turn))
+  ;; TODO could use some work (and its own function)
   (loop with bots-ready = 0
-        until (= bots-ready (n-players *state*))
+        until (= bots-ready @n-players)
         do (sleep +sleep-time+)
            (loop with n-ready = 0
-                 for bot across (bots *state*)
+                 for bot across @bots
                  do (when (equal (thread-status bot) :ready)
                       (incf n-ready))
                  finally (setf bots-ready n-ready)))
-  (loop for bot across (bots *state*) do (setf (thread-status bot) :wait))
-  (setf (orders *state*) (loop for bot across (bots *state*)
-                               append (orders bot)))
+  (setf @orders (loop for bot across @bots append (orders bot)
+                      do (setf (thread-status bot) :wait)))
   (move-ants)
-  (battle-resolution)
+  (battle-resolution)  ; !!! optimisations up and including to here !!!
   (spawn-ants)
-  (unless (equal :none (food-method *state*))
-    (spawn-food))
-  (loop for bot across (bots *state*)
+  (unless (equal @food-method :none) (spawn-food))
+  (loop for bot across @bots
         do (when (and (equal "survived" (status bot))
                       (= 0 (length (ants bot))))
-             (format (log-stream *state*) "turn ~4D bot ~D eliminated~%"
-                     (turn *state*) (bot-id bot))
-             (force-output (log-stream *state*))
+             (format @log-stream "turn ~4D bot ~D eliminated~%"
+                     @turn (bot-id bot))
+             (force-output @log-stream)
              (setf (status bot) "eliminated"))))
-
-
-(defun receive-bot-orders (bot)
-  (loop with go-received = nil
-        until go-received
-        for line = (read-line (sb-ext:process-output (process bot)) nil)
-        do (cond ((starts-with line "go") (setf go-received t))
-                 ((starts-with line "o ")
-                  (let* ((split (split-sequence #\space (string-upcase line)))
-                         (row (parse-integer (elt split 1)))
-                         (col (parse-integer (elt split 2)))
-                         (dir (dir2key (elt split 3)))
-                         (nl (new-location row col dir)))
-                    (push (make-order :bot-id (bot-id bot) :direction dir
-                                      :src-row row :src-col col
-                                      :dst-row (elt nl 0) :dst-col (elt nl 1))
-                          (orders bot)))))))
 
 
 (defun getopt (name)
@@ -221,12 +197,11 @@
 
 
 (defun init-scores-for-new-turn ()
-  (loop for bot across (bots *state*)
+  (loop for bot across @bots
         do (when (equal "survived" (status bot))
-             (vector-push-extend (aref (scores bot) (- (turn *state*) 1))
-                                 (scores bot))
-             ;; haven't been able to deduce the initial scores from playgame.py
-             (when (= 1 (turn *state*))
+             (vector-push-extend (aref (scores bot) (- @turn 1)) (scores bot))
+             ;; hack: dunno how playgame.py gets those initial scores
+             (when (= 1 @turn)
                (adjust-score bot (length (ants bot)))))))
 
 
@@ -239,53 +214,57 @@
 
 (defun log-new-turn-stats ()
   (when *verbose*
-    (format (log-stream *state*) "turn ~4D stats: ant_count: [~A]~%"
-            (turn *state*) (players-ant-count-string :sep ", "))
-    (force-output (log-stream *state*))))
+    (format @log-stream "turn ~4D stats: ant_count: [~A]~%"
+            @turn (players-ant-count-string :sep ", "))
+    (force-output @log-stream)))
 
 
+;; http://www.sbcl.org/manual/index.html#Waitqueue_002fcondition-variables
 (defun make-io-thread (bot-id)
   (sb-thread:make-thread
    (lambda ()
-     (loop while t
-           do (let ((bot (aref (bots *state*) bot-id)))
-                (wait-for-new-turn bot)
-                (send-game-state bot)
-                (loop until (listen (sb-ext:process-output (process bot)))
-                      do (sleep +sleep-time+))
-                (setf (orders bot) nil)
-                (receive-bot-orders bot)
-                (setf (thread-status bot) :ready))))
+     (loop with bot = (aref @bots bot-id)
+           while t
+           do (wait-for-new-turn bot)
+              (send-game-state bot)
+              (loop until (listen (sb-ext:process-output (process bot)))
+                    do (sleep +sleep-time+))
+              (setf (orders bot) nil)
+              (receive-bot-orders bot)
+              (setf (thread-status bot) :ready)))
    :name (mkstr "bot-io-thread-" bot-id)))
 
 
 ;; If needed for performance CHECK-POSITIONS and CHECK-WATER could be moved
 ;; into the loop.
 (defun move-ants ()
-  (clear-dead-ants)  ; TODO needed?
-  (check-positions)
-  (check-water)
+  ;(clear-dead-ants)  ; TODO needed?
+  ;(check-positions)
+  ;(check-water)
   (check-collisions)
-  (loop for order in (orders *state*)
+  (loop for order in @orders
         for bot-id = (order-bot-id order)
         for src-row = (order-src-row order)
         for src-col = (order-src-col order)
         for dst-row = (order-dst-row order)
         for dst-col = (order-dst-col order)
-        for ant = (aref (game-map *state*) src-row src-col)
-        do (when (antp ant)
-             (vector-push-extend (key2dir (order-direction order))
-                                 (orders ant))
-             (setf (slot-value ant 'row) dst-row
-                   (slot-value ant 'col) dst-col
-                   (aref (game-map *state*) src-row src-col) +land+)
-             (unless (dead ant)
-               (setf (aref (game-map *state*) dst-row dst-col) ant))
-             (when (dead ant)
-               (let ((bot (aref (bots *state*) bot-id)))
-                 (setf (slot-value bot 'ants) (remove ant (ants bot)))
-                 ; TODO scoring for collided ants
-                 ))))
+        for tile = (tile-at src-row src-col)
+        do (cond ((/= bot-id (pid tile))
+                  (logmsg "Not owner of tile: " order ". Ignoring...~%"))
+                 ((waterp (tile-at dst-row dst-col))
+                  (logmsg "Ordered into water: " order ". Ignoring...~%"))
+                 ((antp tile)
+                  (vector-push-extend (key2dir (order-direction order))
+                                      (orders tile))
+                  (setf (slot-value tile 'row) dst-row
+                        (slot-value tile 'col) dst-col
+                        (tile-at src-row src-col) +land+)
+                  (unless (dead tile)
+                    (setf (tile-at dst-row dst-col) tile))
+                  (when (dead tile)
+                    (let ((bot (ant-owner tile)))
+                      (setf (slot-value bot 'ants)
+                            (delete tile (ants bot))))))))
   (update-immobile-ant-orders))
 
 
@@ -304,42 +283,41 @@
                     (setf (slot-value *state* 'rows) (par-value line)))
                    ((starts-with line "players ")
                     (setf (slot-value *state* 'n-players) (par-value line)))
-                   ((and (starts-with line "m ") (null (cols *state*)))
+                   ((and (starts-with line "m ") (null @cols))
                     (errmsg "~&Map missing \"cols n\" line. Aborting...~%")
                     (quit 1))
-                   ((and (starts-with line "m ") (null (rows *state*)))
+                   ((and (starts-with line "m ") (null @rows))
                     (errmsg "~&Map missing \"rows n\" line. Aborting...~%")
                     (quit 1))
-                   ((and (starts-with line "m ") (null (n-players *state*)))
+                   ((and (starts-with line "m ") (null @n-players))
                     (errmsg "~&Map missing \"players n\" line. Aborting...~%")
                     (quit 1))
-                   ((and (starts-with line "m ")
-                         (< (length (remainder)) (n-players *state*)))
-                    (errmsg "~&Map needs " (n-players *state*) " players but "
-                            "only " (length (remainder)) " were entered on "
-                            "the command-line. Aborting...~%")
+                   ((and (starts-with line "m ") (< (length (remainder))
+                                                    @n-players))
+                    (errmsg "~&Map needs " @n-players " players but only "
+                            (length (remainder)) " were entered on the "
+                            "command-line. Aborting...~%")
                     (quit 1))
-                   ((and (starts-with line "m ") (null (game-map *state*)))
+                   ((and (starts-with line "m ") (null @game-map))
                     (setf (slot-value *state* 'game-map)
-                          (make-array (list (rows *state*) (cols *state*))
-                                      :initial-element 'abc123))
-                    (parse-map-line (game-map *state*) line rows)
+                          (make-array (list @rows @cols) :initial-element :zz))
+                    (parse-map-line @game-map line rows)
                     (incf rows))
                    ((starts-with line "m ")
-                    (parse-map-line (game-map *state*) line rows)
+                    (parse-map-line @game-map line rows)
                     (incf rows)))
-          finally (when (/= rows (rows *state*))
+          finally (when (/= rows @rows)
                     (errmsg "~&Actual map rows (" rows ") not equal to "
-                            "specified number of rows (" (rows *state*)
-                            "). Aborting...~%")
+                            "specified number of rows (" @rows "). "
+                            "Aborting...~%")
                     (quit 1)))))
 
 
 (defun parse-map-line (map-array string row)
-  (when (/= (- (length string) 2) (cols *state*))
+  (when (/= (- (length string) 2) @cols)
     (errmsg "~&Actual map columns (" (- (length string) 2) ") for this line "
-            "not equal to specified number of~%columns (" (cols *state*) ") "
-            "for this map. Aborting...~%")
+            "not equal to specified number of~%columns (" @cols ") for this "
+            "map. Aborting...~%")
     (quit 1))
   (loop for c across (subseq string 2)
         for col from 0
@@ -351,32 +329,31 @@
                                                :element-type 'boolean
                                                :initial-element nil)))
                    (#\* (let ((food (make-instance 'food :row row :col col
-                                            :start-turn 0 :conversion-turn 0)))
-                          (push food (slot-value *state* 'food))
+                                      :start-turn 0 :conversion-turn 0)))
+                          (push food @food)
                           food))
                    (otherwise
-                    (let* ((pid (char2pid c))
-                           (ant (make-instance 'ant :initial-row row
-                                  :initial-col col :row row :col col :pid pid
-                                  :start-turn 0)))
-                      (push ant (slot-value (aref (bots *state*) pid) 'ants))
+                    (let ((ant (make-instance 'ant :row row :col col
+                                 :initial-row row :initial-col col
+                                 :pid (char2pid c) :start-turn 0)))
+                      (push ant (slot-value (ant-owner ant) 'ants))
                       ant))))))
 
 
 (defun play-game ()
-  (loop for turn from 0 to (turns *state*)
-        do (setf (slot-value *state* 'turn) turn)
+  (loop for turn from 0 to @turns
+        do (setf @turn turn)
            (log-new-turn-stats)
            (cond ((= turn 0) (send-initial-game-state))
-                 ((> turn 0) (do-turn turn)))))
+                 ((> turn 0) (do-turn)))))
 
 
 (defun players-ant-count-string (&key (sep " "))
   (with-output-to-string (s)
-    (loop for bot across (bots *state*)
+    (loop for bot across @bots
           for i from 1
           do (princ (length (ants bot)) s)
-             (when (< i (length (bots *state*)))
+             (when (< i (length @bots))
                (princ sep s)))))
 
 
@@ -440,6 +417,21 @@
     (push (make-order :bot-id bot-id :direction dir :src-row row :src-col col
                       :dst-row (elt nl 0) :dst-col (elt nl 1))
           (orders *state*))))
+
+
+(defun receive-bot-orders (bot)
+  (loop for line = (read-line (sb-ext:process-output (process bot)) nil)
+        until (starts-with line "go")
+        do (when (starts-with line "o ")
+             (let* ((split (split-sequence #\space (string-upcase line)))
+                    (row (parse-integer (elt split 1)))
+                    (col (parse-integer (elt split 2)))
+                    (dir (dir2key (elt split 3)))
+                    (nl (new-location row col dir)))
+               (push (make-order :bot-id (bot-id bot) :direction dir
+                                 :src-row row :src-col col
+                                 :dst-row (elt nl 0) :dst-col (elt nl 1))
+                     (orders bot))))))
 
 
 (defun revitalize-ants ()
@@ -578,24 +570,25 @@
 
 
 (defun send-ant (stream row col bot-id tile)
-  ;(format stream "~A ~D ~D ~D~%" (if (dead tile) "d" "a") row col
-  ;        (cond ((= bot-id (pid tile)) 0)
-  ;              ((< bot-id (pid tile)) (pid tile))
-  ;              ((> bot-id (pid tile)) (+ (pid tile) 1)))))
+  (declare (inline + < = > pid princ write-string terpri)
+           (optimize (speed 3))
+           (type fixnum row col bot-id))
   (write-string (if (dead tile) "d " "a ") stream)
   (princ row stream)
   (write-string " " stream)
   (princ col stream)
   (write-string " " stream)
-  (princ (cond ((= bot-id (pid tile)) 0)
-               ((< bot-id (pid tile)) (pid tile))
-               ((> bot-id (pid tile)) (+ (pid tile) 1)))
+  (princ (cond ((= bot-id (the fixnum (pid tile))) 0)
+               ((< bot-id (the fixnum (pid tile))) (pid tile))
+               ((> bot-id (the fixnum (pid tile)))
+                (+ (the fixnum (pid tile)) 1)))
          stream)
   (terpri stream))
 
 
 (defun send-food (stream row col)
-  ;(format stream "f ~D ~D~%" row col))
+  (declare (inline princ write-string terpri)
+           (optimize (speed 3)))
   (write-string "f " stream)
   (princ row stream)
   (write-string " " stream)
@@ -613,9 +606,10 @@
 
 
 (defun send-water (stream row col id tile)
-  (unless (elt (seen-by tile) id)
-    (setf (elt (seen-by tile) id) t)
-    ;(format stream "w ~D ~D~%" row col)))
+  (declare (inline elt princ write-string terpri)
+           (optimize (speed 3)))
+  (unless (elt (the simple-vector (seen-by tile)) id)
+    (setf (elt (the simple-vector (seen-by tile)) id) t)
     (write-string "w " stream)
     (princ row stream)
     (write-string " " stream)
@@ -623,34 +617,35 @@
     (terpri stream)))
 
 
+;; If you need to optimize, try here first.
 (defun send-game-state (bot)
-  (let ((stream (sb-ext:process-input (process bot)))
-        (turn (turn *state*)))
-    (send-turn stream turn)
+  (declare (inline + - distance2 elt floor send-ant send-food send-water sqrt
+                   tile-at wrapped-row wrapped-col)
+           (optimize (speed 3)))
+  (let ((stream (sb-ext:process-input (process bot))))
+    (send-turn stream @turn)
     (loop with id = (bot-id bot)
-          with vr2 = (view-radius2 *state*)
+          with vr2 = (the fixnum @view-radius2)
           with vr = (floor (sqrt vr2))
           for ant in (ants bot)
-          for arow = (row ant)
-          for acol = (col ant)
+          for arow = (the fixnum (row ant))
+          for acol = (the fixnum (col ant))
           do (loop for roff from (- arow vr) to (+ arow vr)
+                   for row = (wrapped-row roff)
                    do (loop for coff from (- acol vr) to (+ acol vr)
-                            for wrc = (wrapped-row-col roff coff)
-                            for wrow = (elt wrc 0)
-                            for wcol = (elt wrc 1)
-                            for dist2 = (distance2 arow acol wrow wcol)
-                            when (<= dist2 vr2) do
-                               (let* ((tile (aref (game-map *state*) wrow wcol))
-                                      (type (type-of tile)))
-                                 (case type
-                                   (water (send-water stream wrow wcol id tile))
-                                   (food (send-food stream wrow wcol))
-                                   (ant (send-ant stream wrow wcol id tile)))))))
+                           for col = (wrapped-col coff)
+                           when (<= (the fixnum (dist2 arow acol row col)) vr2)
+                           do (let ((tile (tile-at row col)))
+                                (typecase tile
+                                  (water (send-water stream row col id tile))
+                                  ;; order matters: ant is a subclass of food
+                                  (ant (send-ant stream row col id tile))
+                                  (food (send-food stream row col)))))))
     (send-go stream)))
 
 
 (defun send-initial-game-state ()
-  (loop for bot across (bots *state*)
+  (loop for bot across @bots
         for command-line = (command-line bot)
         for id = (bot-id bot)
         for proc = (process bot)
@@ -658,12 +653,12 @@
         for pout = (sb-ext:process-output proc)
         do (if (equal :running (sb-ext:process-status proc))
                (progn
-                 (format pin "turn 0~%loadtime ~D~%turntime ~D~%rows ~D~%cols ~D~%turns ~D~%viewradius2 ~D~%attackradius2 ~D~%spawnradius2 ~D~%ready~%"
-                         (load-time *state*) (turn-time *state*) (rows *state*)
-                         (cols *state*) (turns *state*)
-                         (view-radius2 *state*)
-                         (attack-radius2 *state*)
-                         (spawn-radius2 *state*))
+                 (format pin (mkstr "turn 0~%loadtime ~D~%turntime ~D~%"
+                                    "rows ~D~%cols ~D~%turns ~D~%"
+                                    "viewradius2 ~D~%attackradius2 ~D~%"
+                                    "spawnradius2 ~D~%ready~%")
+                         @load-time @turn-time @rows @cols @turns @view-radius2
+                         @attack-radius2 @spawn-radius2)
                  (force-output pin))
                (logmsg id ":" command-line " has stopped running...~%"))
            (when (equal :running (sb-ext:process-status proc))
@@ -680,9 +675,9 @@
 
 (defun spawn-ants ()
   (loop with mark-as-ant = nil
-        with sr2 = (spawn-radius2 *state*)
+        with sr2 = @spawn-radius2
         with sr = (floor (sqrt sr2))
-        for food in (copy-seq (food *state*))  ; we're modifying (food *state*)
+        for food in (copy-seq @food)  ; we're modifying (food *state*)
         for frow = (row food)
         for fcol = (col food)
         for ants = nil
@@ -696,25 +691,24 @@
                                 (push tile ants))))
            (cond ;; spawn an ant
                  ((or (= (length ants) 1) (= (length pids) 1))
-                  (setf (food *state*) (remove food (food *state*)))
+                  (setf @food (remove food @food))
                   (let* ((pid (pid (first ants)))
-                         (bot (aref (bots *state*) pid))
+                         (bot (aref @bots pid))
                          (ant (make-instance 'ant :row frow :col fcol
                                :start-turn (start-turn food)
-                               :conversion-turn (turn *state*)
+                               :conversion-turn @turn
                                :initial-row frow :initial-col fcol :pid pid)))
                     (push ant (slot-value bot 'ants))
                     (pushnew ant mark-as-ant)
                     (adjust-score bot 1)))
                  ;; contested food, destroy it
                  ((and (> (length ants) 1) (> (length pids) 1))
-                  (setf (conversion-turn food) (turn *state*))
-                  (push food (contested-food *state*))
-                  (setf (food *state*) (remove food (food *state*)))
-                  (setf (aref (game-map *state*) frow fcol) +land+)))
+                  (push food @contested-food)
+                  (setf (conversion-turn food) @turn
+                        @food (remove food @food)
+                        (tile-at frow fcol) +land+)))
         finally (loop for ant in mark-as-ant
-                      do (setf (aref (game-map *state*) (row ant) (col ant))
-                               ant))))
+                      do (setf (tile-at (row ant) (col ant)) ant))))
 
 
 ;; Very simple random food spawning.  Collects all land tile's coordinates
@@ -739,10 +733,10 @@
 
 
 (defun start-bots ()
-  (loop for command-line in (remainder)
+  (loop for command-line in (com.dvlsoft.clon:remainder)
         for proc = (run-program command-line)
         for bot = (make-instance 'bot :command-line command-line :process proc)
-        do (vector-push-extend bot (bots *state*))
+        do (vector-push-extend bot @bots)
            (make-io-thread (bot-id bot))))
 
 
@@ -755,8 +749,7 @@
 (defun update-immobile-ant-orders ()
   (loop for ant in (all-ants)
         for orders = (orders ant)
-        when (< (length orders)
-                (- (turn *state*) (conversion-turn ant)))
+        when (< (length orders) (- @turn (conversion-turn ant)))
           do (vector-push-extend #\- orders)))
 
 
@@ -836,10 +829,9 @@
   (setf *state* (make-instance 'play-game-state :error-stream *debug-io*))
   (process-command-line-options)
   (start-bots)
-  (parse-map (map-file *state*))
-  (logmsg "running for " (turns *state*) " turns~%")
+  (parse-map @map-file)
+  (logmsg "running for " @turns " turns~%")
   (handler-bind (#+sbcl (sb-sys:interactive-interrupt #'user-interrupt))
-                 ;(error #'error-handler))
     (play-game))
   (logmsg "score " (players-score-string) "~%")
   (logmsg "status " (players-status-string) "~%")

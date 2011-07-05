@@ -19,7 +19,8 @@
            ;; predicates
            :alivep :antp :enemyp :foodp :friendlyp :landp :waterp
            ;; functions
-           :current-date-time-string :distance :distance2 :errmsg :host2str
-           :last1 :logmsg :mkstr :nearby-ants :new-location :par-value
-           :print-game-map :quit :random-elt :slimesg :starts-with :tile-at
-           :tile-if-reachable :wall-time :wrapped-row-col))
+           :current-date-time-string :distance :dist :distance2 :dist2 :errmsg
+           :host2str :last1 :logmsg :mkstr :nearby-ants :new-location
+           :par-value :print-game-map :quit :random-elt :slimesg :starts-with
+           :tile-at :tile-if-reachable :wall-time :wrapped-row :wrapped-col
+           :wrapped-row-col))

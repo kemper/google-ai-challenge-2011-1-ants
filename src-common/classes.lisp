@@ -32,6 +32,7 @@
 
 
 (defclass water (tile)
+  ;((seen-by :reader seen-by :type simple-vector :initarg :seen-by)))
   ((seen-by :reader seen-by :initarg :seen-by)))
 
 
@@ -39,7 +40,7 @@
   ((rows :reader rows :initform nil)
    (cols :reader cols :initform nil)
    (game-map :reader game-map :initform nil)
-   (turn :reader turn :initform 0)
+   (turn :accessor turn :initform 0)
    (turns :reader turns :initform nil)
    (turn-start-time :reader turn-start-time :initform nil)
    (turn-time :reader turn-time :initform nil)

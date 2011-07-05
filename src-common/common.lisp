@@ -12,6 +12,11 @@
             year month day hour min sec)))
 
 
+(defun defalias (function alias)
+  "Defines an alias for FUNCTION, so it can be called with ALIAS as well."
+  (setf (symbol-function alias) function))
+
+
 (defun distance (row1 col1 row2 col2)
   "Returns the shortest distance between ROW1,COL1 and ROW2,COL2 for a grid
   that wraps around."
@@ -23,8 +28,10 @@
          (minrow (min drow (- (the fixnum (rows *state*)) drow)))
          (mincol (min dcol (- (the fixnum (cols *state*)) dcol))))
     (declare (type fixnum minrow mincol))
-    (sqrt (logand most-positive-fixnum (+ (* minrow minrow)
-                                          (* mincol mincol))))))
+    (sqrt (logand most-positive-fixnum
+                  (+ (* minrow minrow) (* mincol mincol))))))
+
+(defalias #'distance 'dist)
 
 
 (defun distance2 (row1 col1 row2 col2)
@@ -36,7 +43,10 @@
          (minrow (min drow (- (the fixnum (rows *state*)) drow)))
          (mincol (min dcol (- (the fixnum (cols *state*)) dcol))))
     (declare (type fixnum minrow mincol))
-    (logand most-positive-fixnum (+ (* minrow minrow) (* mincol mincol)))))
+    ;(logand most-positive-fixnum (+ (* minrow minrow) (* mincol mincol)))))
+    (+ (* minrow minrow) (* mincol mincol))))  ; faster?
+
+(defalias #'distance2 'dist2)
 
 
 (defun errmsg (&rest args)
@@ -73,13 +83,16 @@
 
 
 (defun nearby-ants (row col max-dist2 &optional (exclude -1))
+  (declare (inline + - /= = antp distance floor not sqrt pid tile-if-reachable)
+           (optimize (speed 3))
+           (type fixnum row col max-dist2 exclude))
   (loop with dist = (floor (sqrt max-dist2))
         for roff from (- row dist) to (+ row dist)
         append (loop for coff from (- col dist) to (+ col dist)
                      for tile = (tile-if-reachable max-dist2 row col roff coff)
-                     when (and (antp tile) (/= exclude (pid tile))
+                     when (and (antp tile) (/= exclude (the fixnum (pid tile)))
                                (not (and (= roff row) (= coff col))))
-                       collect (vector tile (distance row col roff coff)))))
+                       collect tile)))
 
 
 (defun new-location (row col direction)
@@ -161,6 +174,8 @@
 
 
 (defun tile-at (row col)
+  (declare (inline aref game-map)
+           (optimize (speed 3)))
   (aref (game-map *state*) row col))
 
 (defun (setf tile-at) (value row col)
@@ -168,10 +183,12 @@
 
 
 (defun tile-if-reachable (radius2 src-row src-col dst-row dst-col)
-  (let* ((wrc (wrapped-row-col dst-row dst-col))
-         (wrow (elt wrc 0))
-         (wcol (elt wrc 1)))
-    (when (<= (distance2 src-row src-col wrow wcol) radius2)
+  (declare (inline <= dist2 tile-at wrapped-row wrapped-col)
+           (optimize (speed 3))
+           (type fixnum radius2 src-row src-col dst-row dst-col))
+  (let ((wrow (wrapped-row dst-row))
+        (wcol (wrapped-col dst-col)))
+    (when (<= (the fixnum (dist2 src-row src-col wrow wcol)) radius2)
       (tile-at wrow wcol))))
 
 
@@ -183,6 +200,27 @@
        offset)))
 
 
+(defun wrapped-row (row)
+  (declare (inline + - < >= rows)
+           (optimize (speed 3))
+           (type fixnum row))
+  (let ((rs (the fixnum (rows *state*))))
+    (cond ((< row 0) (+ rs row))  ; adding negative number
+          ((>= row rs) (- row rs))
+          (t row))))
+
+
+(defun wrapped-col (col)
+  (declare (inline + - < >= cols)
+           (optimize (speed 3))
+           (type fixnum col))
+  (let ((cs (the fixnum (cols *state*))))
+    (cond ((< col 0) (+ cs col))  ; adding negative number
+          ((>= col cs) (- col cs))
+          (t col))))
+
+
+;; TODO use wrapped-row and wrapped-col
 (defun wrapped-row-col (row col)
   (declare (inline + - < >= cols rows vector)
            (optimize (speed 3))

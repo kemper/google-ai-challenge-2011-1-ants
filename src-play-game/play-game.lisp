@@ -164,7 +164,9 @@
   (move-ants)
   (battle-resolution)  ; !!! optimisations up and including to here !!!
   (spawn-ants)
+  ;; TODO move check into spawn-food
   (unless (equal @food-method :none) (spawn-food))
+  ;; TODO move into update-bot-status function
   (loop for bot across @bots
         do (when (and (equal "survived" (status bot))
                       (= 0 (length (ants bot))))
@@ -622,8 +624,9 @@
   (declare (inline + - distance2 elt floor send-ant send-food send-water sqrt
                    tile-at wrapped-row wrapped-col)
            (optimize (speed 3)))
-  (let ((stream (sb-ext:process-input (process bot))))
-    (send-turn stream @turn)
+  (let ((str (make-string-output-stream))
+        (stream (sb-ext:process-input (process bot))))
+    (send-turn str @turn)
     (loop with id = (bot-id bot)
           with vr2 = (the fixnum @view-radius2)
           with vr = (floor (sqrt vr2))
@@ -637,10 +640,11 @@
                            when (<= (the fixnum (dist2 arow acol row col)) vr2)
                            do (let ((tile (tile-at row col)))
                                 (typecase tile
-                                  (water (send-water stream row col id tile))
+                                  (water (send-water str row col id tile))
                                   ;; order matters: ant is a subclass of food
-                                  (ant (send-ant stream row col id tile))
-                                  (food (send-food stream row col)))))))
+                                  (ant (send-ant str row col id tile))
+                                  (food (send-food str row col)))))))
+    (write-string (get-output-stream-string str) stream)
     (send-go stream)))
 
 

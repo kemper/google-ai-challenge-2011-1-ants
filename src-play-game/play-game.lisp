@@ -621,10 +621,10 @@
 
 ;; If you need to optimize, try here first.
 (defun send-game-state (bot)
-  (declare (inline + - distance2 elt floor send-ant send-food send-water sqrt
+  (declare (inline + - dist2 elt floor send-ant send-food send-water sqrt
                    tile-at wrapped-row wrapped-col)
            (optimize (speed 3)))
-  (let ((str (make-string-output-stream))
+  (let ((str (string-output-stream bot))
         (stream (sb-ext:process-input (process bot))))
     (send-turn str @turn)
     (loop with id = (bot-id bot)

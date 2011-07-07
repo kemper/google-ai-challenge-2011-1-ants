@@ -18,6 +18,8 @@
        (status :accessor status :initform "survived")
        (command-line :reader command-line :initarg :command-line :initform nil)
        (process :reader process :initarg :process :initform nil)
+       (string-output-stream :reader string-output-stream
+                             :initform (make-string-output-stream))
        (thread-status :accessor thread-status :initform :wait)
        (orders :accessor orders :initform nil)
        (ants :reader ants :initform nil)
